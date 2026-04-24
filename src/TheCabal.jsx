@@ -1,5 +1,33 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 
+/* ══════════════════════════════════════════════════════
+   IPFS GATEWAY ROTATION
+   Tries gateways in order on error. w3s.link and
+   nftstorage.link are fastest for NFT content.
+══════════════════════════════════════════════════════ */
+const IPFS_GATEWAYS = [
+  "https://w3s.link/ipfs/",
+  "https://nftstorage.link/ipfs/",
+  "https://gateway.pinata.cloud/ipfs/",
+  "https://ipfs.io/ipfs/",
+];
+
+function ipfsUrl(cid, gatewayIndex = 0) {
+  return (IPFS_GATEWAYS[gatewayIndex] || IPFS_GATEWAYS[0]) + cid;
+}
+
+function ipfsOnError(e, cid) {
+  const src = e.target.src;
+  const currentIdx = IPFS_GATEWAYS.findIndex(g => src.startsWith(g));
+  const nextIdx = currentIdx + 1;
+  if (nextIdx < IPFS_GATEWAYS.length) {
+    e.target.src = IPFS_GATEWAYS[nextIdx] + cid;
+  } else {
+    e.target.style.display = "none";
+  }
+}
+
+
 /* ╔══════════════════════════════════════════════════════════════════════════╗
    ║                    THE CABAL  —  EDITOR'S GUIDE                         ║
    ╠══════════════════════════════════════════════════════════════════════════╣
@@ -136,7 +164,7 @@ const ASSET = {
   packPity:     null,
   card:    () => null,
   cardPfp: (card) => {
-    return card && card.image_cid ? `https://ipfs.io/ipfs/${card.image_cid}` : null;
+    return card && card.image_cid ? ipfsUrl(card.image_cid) : null;
   },
 };
 
@@ -462,7 +490,7 @@ function downloadCardPNG(card) {
   };
   loadImg(ASSET.card(card.id))
     .then(dl)
-    .catch(() => loadImg((card.image_cid ? `https://ipfs.io/ipfs/${card.image_cid}` : null)).then(dl).catch(() => dl(null)));
+    .catch(() => loadImg((card.image_cid ? ipfsUrl(card.image_cid) : null)).then(dl).catch(() => dl(null)));
 }
 
 /* ══════════════════════════════════════════════════════
@@ -691,16 +719,9 @@ function CardFace({ card, dispW, holoPos={x:0.5,y:0.5}, holoActive=false, allowT
       {/* Art */}
       <div style={{position:"absolute",left:ART_L,top:ART_T,width:ART_W,height:ART_H_PCT,overflow:"hidden",zIndex:1}}>
         <img
-          src={(card.image_cid ? `https://ipfs.io/ipfs/${card.image_cid}` : null)}
+          src={(card.image_cid ? ipfsUrl(card.image_cid) : null)}
           alt=""
-          onError={e=>{
-            const src = e.target.src;
-            if (src.includes("ipfs.io")) {
-              e.target.src = src.replace("https://ipfs.io/ipfs/","https://nftstorage.link/ipfs/");
-            } else {
-              e.target.style.display="none";
-            }
-          }}
+          onError={e=>ipfsOnError(e, card.image_cid)}
           style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"center 15%",display:"block"}}
         />
       </div>
@@ -708,16 +729,9 @@ function CardFace({ card, dispW, holoPos={x:0.5,y:0.5}, holoActive=false, allowT
       {card.rarity === "UR" && (
         <div style={{position:"absolute",left:ART_L,top:ART_T,width:ART_W,height:ART_H_PCT,overflow:"hidden",zIndex:9,pointerEvents:"none"}}>
           <img
-            src={(card.image_cid ? `https://ipfs.io/ipfs/${card.image_cid}` : null)}
+            src={(card.image_cid ? ipfsUrl(card.image_cid) : null)}
             alt=""
-            onError={e=>{
-            const src = e.target.src;
-            if (src.includes("ipfs.io")) {
-              e.target.src = src.replace("https://ipfs.io/ipfs/","https://nftstorage.link/ipfs/");
-            } else {
-              e.target.style.display="none";
-            }
-          }}
+            onError={e=>ipfsOnError(e, card.image_cid)}
             style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"center 15%",display:"block",opacity:0.72}}
           />
         </div>
@@ -2856,15 +2870,8 @@ function ForgeView({ uniqueCards, st, save, notify }) {
                   }}>
                   {/* Photo */}
                   <div style={{ aspectRatio:"1/1", background:"#0d0d0d", overflow:"hidden" }}>
-                    <img src={(card.image_cid ? `https://ipfs.io/ipfs/${card.image_cid}` : null)} alt=""
-                      onError={e=>{
-            const src = e.target.src;
-            if (src.includes("ipfs.io")) {
-              e.target.src = src.replace("https://ipfs.io/ipfs/","https://nftstorage.link/ipfs/");
-            } else {
-              e.target.style.display="none";
-            }
-          }}
+                    <img src={(card.image_cid ? ipfsUrl(card.image_cid) : null)} alt=""
+                      onError={e=>ipfsOnError(e, card.image_cid)}
                       style={{ width:"100%", height:"100%", objectFit:"cover",
                         filter: isSelected ? "none" : "grayscale(0.35) brightness(0.6)",
                         transition:"filter .15s" }}/>
@@ -3741,14 +3748,7 @@ function ICDealCard({ deal, player, dispW }) {
     }}>
       <div style={{height:"52%",overflow:"hidden",position:"relative",flexShrink:0}}>
         <img src={ASSET.cardPfp(deal.caster?.handle||"")} alt=""
-          onError={e=>{
-            const src = e.target.src;
-            if (src.includes("ipfs.io")) {
-              e.target.src = src.replace("https://ipfs.io/ipfs/","https://nftstorage.link/ipfs/");
-            } else {
-              e.target.style.display="none";
-            }
-          }}
+          onError={e=>ipfsOnError(e, card.image_cid)}
           style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"center 15%"}}/>
         <div style={{position:"absolute",inset:0,
           background:"linear-gradient(to bottom,transparent 35%,rgba(0,0,0,0.92))"}}/>
@@ -4134,14 +4134,7 @@ function ICSummaryCard({ player, turns, death, stats, dispW, onShare, onNext }) 
         <div style={{width:Math.round(dispW*.2),height:Math.round(dispW*.2*(470/300)),
           borderRadius:4,overflow:"hidden",border:`1px solid ${r.color}66`,flexShrink:0}}>
           <img src={ASSET.cardPfp(player.handle||"")} alt=""
-            onError={e=>{
-            const src = e.target.src;
-            if (src.includes("ipfs.io")) {
-              e.target.src = src.replace("https://ipfs.io/ipfs/","https://nftstorage.link/ipfs/");
-            } else {
-              e.target.style.display="none";
-            }
-          }}
+            onError={e=>ipfsOnError(e, card.image_cid)}
             style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"center 15%"}}/>
         </div>
         <div>
@@ -4491,14 +4484,7 @@ function InnerCircleView({ uniqueCards, st, save, notify }) {
               <div style={{width:28,height:Math.round(28*470/300),borderRadius:3,
                 overflow:"hidden",border:`1px solid ${r.color}55`,flexShrink:0}}>
                 <img src={ASSET.cardPfp(player.handle)} alt=""
-                  onError={e=>{
-            const src = e.target.src;
-            if (src.includes("ipfs.io")) {
-              e.target.src = src.replace("https://ipfs.io/ipfs/","https://nftstorage.link/ipfs/");
-            } else {
-              e.target.style.display="none";
-            }
-          }}
+                  onError={e=>ipfsOnError(e, card.image_cid)}
                   style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"center 15%"}}/>
               </div>
               <div style={{...mono,fontSize:8,color:IC_TYPE_COLOR[type]||"#555",
