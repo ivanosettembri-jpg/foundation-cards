@@ -5,26 +5,26 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
    Tries gateways in order on error. w3s.link and
    nftstorage.link are fastest for NFT content.
 ══════════════════════════════════════════════════════ */
-// Foundation stores images in IPFS folders: {cid}/nft.png
-// weserv.nl resizes on the fly: 15MB originals → ~40KB WebP thumbnails.
+// Foundation stores images in IPFS folders ({cid}/nft.png) OR as direct files.
+// We try both. weserv.nl resizes: 15MB originals → ~40KB WebP thumbnails.
+const _IPFS_STEPS = [
+  (cid) => { const u=encodeURIComponent(`w3s.link/ipfs/${cid}/nft.png`);   return `https://images.weserv.nl/?url=${u}&w=400&q=75&output=webp`; },
+  (cid) => { const u=encodeURIComponent(`w3s.link/ipfs/${cid}`);           return `https://images.weserv.nl/?url=${u}&w=400&q=75&output=webp`; },
+  (cid) => { const u=encodeURIComponent(`nftstorage.link/ipfs/${cid}/nft.png`); return `https://images.weserv.nl/?url=${u}&w=400&q=75&output=webp`; },
+  (cid) => `https://w3s.link/ipfs/${cid}/nft.png`,
+  (cid) => `https://w3s.link/ipfs/${cid}`,
+];
+const _ipfsStep = {};
+
 function ipfsUrl(cid) {
-  const src = encodeURIComponent(`w3s.link/ipfs/${cid}/nft.png`);
-  return `https://images.weserv.nl/?url=${src}&w=400&q=75&output=webp`;
+  return _IPFS_STEPS[0](cid);
 }
 
-// Fallback chain: direct IPFS gateways (full resolution, no resize)
-const IPFS_FALLBACK_GATEWAYS = [
-  (cid) => `https://w3s.link/ipfs/${cid}/nft.png`,
-  (cid) => `https://nftstorage.link/ipfs/${cid}/nft.png`,
-  (cid) => `https://ipfs.io/ipfs/${cid}/nft.png`,
-];
-let _fallbackIdx = {};
-
 function ipfsOnError(e, cid) {
-  const idx = _fallbackIdx[cid] || 0;
-  if (idx < IPFS_FALLBACK_GATEWAYS.length) {
-    _fallbackIdx[cid] = idx + 1;
-    e.target.src = IPFS_FALLBACK_GATEWAYS[idx](cid);
+  const next = (_ipfsStep[cid] || 0) + 1;
+  if (next < _IPFS_STEPS.length) {
+    _ipfsStep[cid] = next;
+    e.target.src = _IPFS_STEPS[next](cid);
   } else {
     e.target.style.display = "none";
   }
@@ -2016,10 +2016,20 @@ function TheCabalApp() {
   const handleAnimEnd = useCallback(p => {
     if (p==="shaking") { setPhase("burst"); return; }
     if (p==="burst") {
-      if (!isBulkRef.current) setRC(drawPack(luckyRef.current));  // x1: draw here; x10: already drawn
+      const cards = !isBulkRef.current ? drawPack(luckyRef.current) : null;
+      if (cards) setRC(cards);
       setRD(false);
-      // isBulk stays true until takeAll so reveal shows bulk grid
-      setPhase("revealing");
+      // Preload card images before revealing — max 4s wait
+      const toLoad = cards || revealCards;
+      const preloads = toLoad
+        .filter(c => c.image_cid)
+        .map(c => new Promise(res => {
+          const img = new window.Image();
+          img.onload = img.onerror = res;
+          img.src = ipfsUrl(c.image_cid);
+          setTimeout(res, 4000);
+        }));
+      Promise.all(preloads).then(() => setPhase("revealing"));
     }
   }, []);
 
