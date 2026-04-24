@@ -5,27 +5,26 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
    Tries gateways in order on error. w3s.link and
    nftstorage.link are fastest for NFT content.
 ══════════════════════════════════════════════════════ */
-// Pure IPFS gateways — no dependency on Foundation infrastructure.
-// Foundation used Pinata for pinning, so gateway.pinata.cloud has most content.
-// Gateways are tried in order on each image error.
-const IPFS_GATEWAYS = [
-  (cid) => `https://gateway.pinata.cloud/ipfs/${cid}`,
-  (cid) => `https://nftstorage.link/ipfs/${cid}`,
-  (cid) => `https://w3s.link/ipfs/${cid}`,
-  (cid) => `https://dweb.link/ipfs/${cid}`,
-  (cid) => `https://ipfs.io/ipfs/${cid}`,
-];
-
+// Foundation stores images in IPFS folders: {cid}/nft.png
+// weserv.nl resizes on the fly: 15MB originals → ~40KB WebP thumbnails.
 function ipfsUrl(cid) {
-  return IPFS_GATEWAYS[0](cid);
+  const src = encodeURIComponent(`w3s.link/ipfs/${cid}/nft.png`);
+  return `https://images.weserv.nl/?url=${src}&w=400&q=75&output=webp`;
 }
 
+// Fallback chain: direct IPFS gateways (full resolution, no resize)
+const IPFS_FALLBACK_GATEWAYS = [
+  (cid) => `https://w3s.link/ipfs/${cid}/nft.png`,
+  (cid) => `https://nftstorage.link/ipfs/${cid}/nft.png`,
+  (cid) => `https://ipfs.io/ipfs/${cid}/nft.png`,
+];
+let _fallbackIdx = {};
+
 function ipfsOnError(e, cid) {
-  const src = e.target.src;
-  const idx = IPFS_GATEWAYS.findIndex(fn => src === fn(cid));
-  const next = idx + 1;
-  if (next < IPFS_GATEWAYS.length) {
-    e.target.src = IPFS_GATEWAYS[next](cid);
+  const idx = _fallbackIdx[cid] || 0;
+  if (idx < IPFS_FALLBACK_GATEWAYS.length) {
+    _fallbackIdx[cid] = idx + 1;
+    e.target.src = IPFS_FALLBACK_GATEWAYS[idx](cid);
   } else {
     e.target.style.display = "none";
   }
@@ -726,13 +725,14 @@ function CardFace({ card, dispW, holoPos={x:0.5,y:0.5}, holoActive=false, allowT
           src={(card.image_cid ? ipfsUrl(card.image_cid) : null)}
           alt=""
           onError={e=>ipfsOnError(e, card.image_cid)}
-          style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"center 15%",display:"block"}}
+          loading="lazy" style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"center 15%",display:"block"}}
         />
       </div>
       {/* UR: semi-opaque copy above holo layers */}
       {card.rarity === "UR" && (
         <div style={{position:"absolute",left:ART_L,top:ART_T,width:ART_W,height:ART_H_PCT,overflow:"hidden",zIndex:9,pointerEvents:"none"}}>
           <img
+            loading="lazy"
             src={(card.image_cid ? ipfsUrl(card.image_cid) : null)}
             alt=""
             onError={e=>ipfsOnError(e, card.image_cid)}
@@ -2874,7 +2874,7 @@ function ForgeView({ uniqueCards, st, save, notify }) {
                   }}>
                   {/* Photo */}
                   <div style={{ aspectRatio:"1/1", background:"#0d0d0d", overflow:"hidden" }}>
-                    <img src={(card.image_cid ? ipfsUrl(card.image_cid) : null)} alt=""
+                    <img loading="lazy" src={(card.image_cid ? ipfsUrl(card.image_cid) : null)} alt=""
                       onError={e=>ipfsOnError(e, card.image_cid)}
                       style={{ width:"100%", height:"100%", objectFit:"cover",
                         filter: isSelected ? "none" : "grayscale(0.35) brightness(0.6)",
