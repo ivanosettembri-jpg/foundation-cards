@@ -5,23 +5,27 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
    Tries gateways in order on error. w3s.link and
    nftstorage.link are fastest for NFT content.
 ══════════════════════════════════════════════════════ */
+// Pure IPFS gateways — no dependency on Foundation infrastructure.
+// Foundation used Pinata for pinning, so gateway.pinata.cloud has most content.
+// Gateways are tried in order on each image error.
 const IPFS_GATEWAYS = [
-  "https://w3s.link/ipfs/",
-  "https://nftstorage.link/ipfs/",
-  "https://gateway.pinata.cloud/ipfs/",
-  "https://ipfs.io/ipfs/",
+  (cid) => `https://gateway.pinata.cloud/ipfs/${cid}`,
+  (cid) => `https://nftstorage.link/ipfs/${cid}`,
+  (cid) => `https://w3s.link/ipfs/${cid}`,
+  (cid) => `https://dweb.link/ipfs/${cid}`,
+  (cid) => `https://ipfs.io/ipfs/${cid}`,
 ];
 
-function ipfsUrl(cid, gatewayIndex = 0) {
-  return (IPFS_GATEWAYS[gatewayIndex] || IPFS_GATEWAYS[0]) + cid;
+function ipfsUrl(cid) {
+  return IPFS_GATEWAYS[0](cid);
 }
 
 function ipfsOnError(e, cid) {
   const src = e.target.src;
-  const currentIdx = IPFS_GATEWAYS.findIndex(g => src.startsWith(g));
-  const nextIdx = currentIdx + 1;
-  if (nextIdx < IPFS_GATEWAYS.length) {
-    e.target.src = IPFS_GATEWAYS[nextIdx] + cid;
+  const idx = IPFS_GATEWAYS.findIndex(fn => src === fn(cid));
+  const next = idx + 1;
+  if (next < IPFS_GATEWAYS.length) {
+    e.target.src = IPFS_GATEWAYS[next](cid);
   } else {
     e.target.style.display = "none";
   }
@@ -2113,7 +2117,7 @@ function TheCabalApp() {
       m[c.id].count++;
     });
     return Object.values(m).sort((a,b) => RARITY_ORDER.indexOf(a.rarity) - RARITY_ORDER.indexOf(b.rarity));
-  }, [st.collection]);
+  }, [st.collection, loaded]); // loaded ensures recompute after CSV loads
 
   if (!loaded) return (
     <LoadingScreen
