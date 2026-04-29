@@ -89,22 +89,37 @@ async function getAlchemyThumb(collection, tokenId) {
   return _alchemyPromises[key];
 }
 
+const LOADING_PHRASES = [
+  "fetching from chain...",
+  "consulting the oracle...",
+  "summoning the artifact...",
+  "decoding the ledger...",
+  "verifying on-chain...",
+  "retrieving the piece...",
+];
+
 function CardImage({ card, style }) {
-  const [src, setSrc] = React.useState(null);
+  // Initialize immediately from cache — avoids blank frame if pre-fetch already ran
+  const [src, setSrc] = React.useState(() => {
+    if (!card.image_cid || !card.collection || !card.token_id) return null;
+    const key = `${card.collection}_${card.token_id}`;
+    return _alchemyCache[key] || null;
+  });
   const [errStep, setErrStep] = React.useState(0);
+  const [loading, setLoading] = React.useState(!src);
+  const phrase = React.useRef(LOADING_PHRASES[Math.floor(Math.random()*LOADING_PHRASES.length)]);
 
   React.useEffect(() => {
     if (!card.image_cid) return;
     let cancelled = false;
-    // Try Alchemy first (handles both images and videos via thumbnailUrl)
     if (card.collection && card.token_id) {
       getAlchemyThumb(card.collection, card.token_id).then(url => {
         if (cancelled) return;
+        setLoading(false);
         if (url) { setSrc(url); return; }
-        // Alchemy had nothing — fall back to direct IPFS
         setSrc(`https://w3s.link/ipfs/${card.image_cid}/nft.png`);
       }).catch(() => {
-        if (!cancelled) setSrc(`https://w3s.link/ipfs/${card.image_cid}/nft.png`);
+        if (!cancelled) { setLoading(false); setSrc(`https://w3s.link/ipfs/${card.image_cid}/nft.png`); }
       });
     } else {
       setSrc(`https://w3s.link/ipfs/${card.image_cid}/nft.png`);
@@ -118,7 +133,21 @@ function CardImage({ card, style }) {
     `https://nftstorage.link/ipfs/${card.image_cid}`,
   ] : [];
 
-  if (!src) return null;
+  if (!src) {
+    // Show loading placeholder — never show blank card
+    return (
+      <div style={{...style, display:"flex", alignItems:"center", justifyContent:"center",
+        background:"#080808", flexDirection:"column", gap:6}}>
+        <div style={{
+          fontFamily:"'DM Mono',monospace", fontSize:7, color:"#252525",
+          letterSpacing:1.5, textAlign:"center", padding:"0 8px",
+          animation:"pulse 1.8s ease-in-out infinite",
+        }}>
+          {phrase.current}
+        </div>
+      </div>
+    );
+  }
   return (
     <img
       loading="lazy"
