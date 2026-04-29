@@ -1978,6 +1978,7 @@ function TheCabalApp() {
   const packColorIdx = (st.totalOpened ?? 0) % 4;
   const [revealCards,setRC]  = useState([]);
   const [revealDone,setRD]   = useState(false);
+  const [bulkModal,setBulkModal] = useState(null);
   const [isBulk,setIsBulk]   = useState(false);
   const isBulkRef = useRef(false);
   useEffect(() => { isBulkRef.current = isBulk; }, [isBulk]);
@@ -2423,14 +2424,24 @@ function TheCabalApp() {
                         <div key={card._uid} style={{
                           animation:`cardReveal 0.3s ease ${Math.min(i*0.03,0.5)}s both`,
                           display:"flex", justifyContent:"center",
-                          position:"relative",
-                        }}>
+                          position:"relative", cursor:"pointer",
+                        }}
+                          onClick={()=>setBulkModal(card)}
+                        >
                           <CardCanvas card={card} dispW={isBulk?100:138}/>
                           {!ownedIds.has(card.id) && (
                             <NewBadge size={isBulk?"sm":"md"}/>
                           )}
                         </div>
                       ))}
+                      {bulkModal && (
+                        <CardModal
+                          card={bulkModal}
+                          onClose={()=>setBulkModal(null)}
+                          isFav={(st.favorites||[]).includes(bulkModal.id)}
+                          onToggleFav={toggleFav}
+                        />
+                      )}
                     </div>
                   </div>
                 )}
@@ -2523,19 +2534,7 @@ function CardModal({ card, onClose, isFav, onToggleFav }) {
             fontFamily:"'DM Mono',monospace", lineHeight:1,
           }}
         >×</button>
-        {onToggleFav && (
-          <button
-            onClick={e=>{e.stopPropagation();onToggleFav(card.id);}}
-            style={{
-              position:"absolute", top:-14, left:-14,
-              width:28, height:28, borderRadius:"50%",
-              background:"#1a1a1a", border:"1px solid #333",
-              color:isFav?"#e74c3c":"#555", fontSize:16, cursor:"pointer",
-              display:"flex", alignItems:"center", justifyContent:"center",
-              lineHeight:1, transition:"color .15s",
-            }}
-          >♥</button>
-        )}
+
       </div>
 
       {/* Hint row — below the card */}
