@@ -10,6 +10,21 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 const ALCHEMY_KEY = "l40Adj6lx9enV3reVqZMr";
 const _alchemyCache = {};
 
+// Global NFT metadata reactive store
+const _nftMeta = {};
+const _nftMetaListeners = new Set();
+function _emitNFTMeta(id) { _nftMetaListeners.forEach(cb => cb(id)); }
+function useNFTMeta(cardId) {
+  const [meta, setMeta] = React.useState(_nftMeta[cardId] || null);
+  React.useEffect(() => {
+    setMeta(_nftMeta[cardId] || null);
+    const cb = id => { if (id === cardId) setMeta(_nftMeta[cardId] || null); };
+    _nftMetaListeners.add(cb);
+    return () => _nftMetaListeners.delete(cb);
+  }, [cardId]);
+  return meta;
+}
+
 async function getAlchemyThumb(collection, tokenId) {
   const key = `${collection}_${tokenId}`;
   if (_alchemyCache[key] !== undefined) return _alchemyCache[key];
@@ -589,6 +604,11 @@ function CardFace({ card, dispW, holoPos={x:0.5,y:0.5}, holoActive=false, allowT
   const isLR  = card.rarity === "LR";
   const serial = SERIAL_MAP[card.id];
   const fs = n => Math.round(dispW * n);
+  // Real NFT name and collection from Alchemy (replaces FND #XXXXXX)
+  const alchemyKey = card.collection && card.token_id ? `${card.collection}_${card.token_id}` : null;
+  const nftMeta = useNFTMeta(alchemyKey);
+  const displayName = nftMeta?.name || card.name;
+  const displayCat  = nftMeta?.collection || nftMeta?.symbol || card.cat;
 
   // New layout — art fills most of card, no bio section
   // header: 26px | art: 332px | info: 68px | footer: 22px  (total ~448 / 470)
@@ -801,8 +821,8 @@ function CardFace({ card, dispW, holoPos={x:0.5,y:0.5}, holoActive=false, allowT
         paddingTop: isFullArt ? 0 : fs(.03),
       }}>
         {card.handle && <div style={{fontFamily:"'DM Mono',monospace",fontSize:fs(.044),color:r.accent,letterSpacing:.3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{card.handle}</div>}
-        <div style={{fontFamily:"'DM Mono',monospace",fontSize:fs(.068),color:"#e8e8e8",fontWeight:500,lineHeight:1.15,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{card.name}</div>
-        <div style={{fontFamily:"'DM Mono',monospace",fontSize:fs(.036),color:"#555",letterSpacing:.4}}>{card.cat.toUpperCase()}</div>
+        <div style={{fontFamily:"'DM Mono',monospace",fontSize:fs(.068),color:"#e8e8e8",fontWeight:500,lineHeight:1.15,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{displayName}</div>
+        <div style={{fontFamily:"'DM Mono',monospace",fontSize:fs(.036),color:"#555",letterSpacing:.4}}>{displayCat.toUpperCase()}</div>
       </div>
 
       {/* Footer — hidden for full-art LR */}
@@ -1925,6 +1945,7 @@ function TheCabalApp() {
   const [tab,setTab]         = useState("gacha");
   // phase: "idle" | "shaking" | "burst" | "revealing" | "bulk"
   const [phase,setPhase]     = useState("idle");
+  const [loadMsg,setLoadMsg]   = useState("");
   const packColorIdx = (st.totalOpened ?? 0) % 4;
   const [revealCards,setRC]  = useState([]);
   const [revealDone,setRD]   = useState(false);
@@ -2057,9 +2078,21 @@ function TheCabalApp() {
   const handleAnimEnd = useCallback(p => {
     if (p==="shaking") { setPhase("burst"); return; }
     if (p==="burst") {
-      if (!isBulkRef.current) setRC(drawPack(luckyRef.current));
+      const drawnCards = !isBulkRef.current ? drawPack(luckyRef.current) : null;
+      if (drawnCards) setRC(drawnCards);
       setRD(false);
-      setPhase("revealing");
+      const toLoad = drawnCards || revealCards;
+      // Show creative loading message
+      const msgs = ["i have a good feeling about this", "are you feeling lucky, ser?", "will it be ai slop?", "hold on ser", "bribing the validators...", "consulting the oracle...", "summoning from the chain...", "asking gm to the network...", "shuffling 343k tokens...", "the blockchain never lies"];
+      setLoadMsg(msgs[Math.floor(Math.random()*msgs.length)]);
+      // Pre-fetch all Alchemy metadata in parallel (max 2.5s wait)
+      const prefetches = toLoad
+        .filter(c => c.collection && c.token_id)
+        .map(c => getAlchemyThumb(c.collection, c.token_id).catch(()=>null));
+      Promise.race([
+        Promise.all(prefetches),
+        new Promise(res => setTimeout(res, 2500)),
+      ]).then(() => { setLoadMsg(""); setPhase("revealing"); });
     }
   }, []);
 
@@ -2290,6 +2323,12 @@ function TheCabalApp() {
               <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
                 <div style={{height:24}}/>
                 <PackVisual special={luckyOpen} phase={phase} onAnimEnd={handleAnimEnd} colorIdx={packColorIdx}/>
+                {phase==="burst" && loadMsg && (
+                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"#2a2a2a",
+                    letterSpacing:1,marginTop:16,animation:"fadeIn .4s ease"}}>
+                    {loadMsg}
+                  </div>
+                )}
               </div>
             )}
 
