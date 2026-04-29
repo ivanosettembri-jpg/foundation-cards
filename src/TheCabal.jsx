@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 
 /* ╔══════════════════════════════════════════════════════════════════════════╗
    ║                    THE CABAL  —  EDITOR'S GUIDE                         ║
@@ -5081,20 +5081,6 @@ function ExchangeView({ st, save, notify, uniqueCards }) {
   );
 }
 
-class ErrorBoundary extends React.Component {
-  constructor(p) { super(p); this.state={err:null}; }
-  componentDidCatch(e,i) { this.setState({err:e?.message||String(e), stack:e?.stack, comp:i?.componentStack}); }
-  render() {
-    if (this.state.err) return (
-      <div style={{padding:16,fontFamily:"monospace",color:"#f88",background:"#000",minHeight:"100vh",overflow:"auto",fontSize:10,whiteSpace:"pre-wrap"}}>
-        <div style={{color:"#f44",fontSize:13,marginBottom:8}}>CRASH: {this.state.err}</div>
-        <div style={{color:"#f66",marginBottom:8}}>{this.state.stack}</div>
-        <div style={{color:"#fa0"}}>{this.state.comp}</div>
-      </div>
-    );
-    return this.props.children;
-  }
-}
 export default function TheCabal() {
-  return <ErrorBoundary><TheCabalApp/></ErrorBoundary>;
+  return <TheCabalApp/>;
 }
