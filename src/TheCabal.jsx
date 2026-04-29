@@ -33,7 +33,7 @@ const _alchemyPromises = {}; // deduplication: multiple callers share one fetch
 // Fetches historical sale data from Alchemy. Updates rarity if sold above thresholds.
 // LR ≥ 1 ETH, UR ≥ 0.1 ETH, R ≥ 0.01 ETH. Runs silently in background.
 const _saleFetched = new Set();
-async function fetchSaleRarity(card, onRarityUpdate) {
+async function fetchSaleRarity(card, onRarityUpdate, onSaleLog) {
   if (!card.collection || !card.token_id) return;
   const key = `sale_${card.collection}_${card.token_id}`;
   if (_saleFetched.has(key)) return;
@@ -55,6 +55,7 @@ async function fetchSaleRarity(card, onRarityUpdate) {
     }));
     const maxEth = maxWei / 1e18;
     console.log("Sale found:", maxEth.toFixed(4), "ETH for", card.collection, card.token_id);
+    if (onSaleLog) onSaleLog(card.name, maxEth);
     const newRarity =
       maxEth >= 10  ? "LR" :
       maxEth >= 2   ? "UR" :
@@ -131,6 +132,7 @@ function CardImage({ card, style }) {
     `https://w3s.link/ipfs/${card.image_cid}`,
     `https://nftstorage.link/ipfs/${card.image_cid}/nft.png`,
     `https://nftstorage.link/ipfs/${card.image_cid}`,
+    `https://dweb.link/ipfs/${card.image_cid}/nft.png`,
   ] : [];
 
   if (!src) {
