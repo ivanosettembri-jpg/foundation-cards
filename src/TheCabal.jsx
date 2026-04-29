@@ -2063,9 +2063,10 @@ function TheCabalApp() {
 
   const toggleFav = useCallback((cardId) => {
     save(prev => {
-      const favs = new Set(prev.favorites || []);
-      if (favs.has(cardId)) favs.delete(cardId); else favs.add(cardId);
-      return {...prev, favorites: favs};
+      const arr = Array.isArray(prev.favorites) ? [...prev.favorites] : [];
+      const idx = arr.indexOf(cardId);
+      if (idx > -1) arr.splice(idx, 1); else arr.push(cardId);
+      return {...prev, favorites: arr};
     });
   }, [save]);
 
@@ -2442,7 +2443,7 @@ function TheCabalApp() {
           </div>
         )}
 
-        {tab==="collection" && <CollectionView unique={uniqueCards} notify={notify} favoritesArr={st.favorites || []} onToggleFav={toggleFav}/>}
+        {tab==="collection" && <CollectionView unique={uniqueCards} notify={notify} favoritesArr={Array.isArray(st.favorites) ? st.favorites : []} onToggleFav={toggleFav}/>}
         {tab==="forge"      && <ForgeView uniqueCards={uniqueCards} st={st} save={save} notify={notify}/>}
         {tab==="missions"   && <MissionsView st={st} save={save} notify={notify} uniqueCards={uniqueCards}/>}
       </main>
