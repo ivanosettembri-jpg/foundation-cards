@@ -2062,13 +2062,15 @@ function TheCabalApp() {
   }, [loaded, persist]);
 
   const toggleFav = useCallback((cardId) => {
-    save(prev => {
+    setSt(prev => {
       const arr = Array.isArray(prev.favorites) ? [...prev.favorites] : [];
-      const idx = arr.indexOf(cardId);
-      if (idx > -1) arr.splice(idx, 1); else arr.push(cardId);
-      return {...prev, favorites: arr};
+      const i = arr.indexOf(cardId);
+      if (i > -1) arr.splice(i, 1); else arr.push(cardId);
+      const next = {...prev, favorites: arr};
+      persist(next);
+      return next;
     });
-  }, [save]);
+  }, [persist]);
 
   const notify = useCallback((msg) => {
     setNotif(msg); setTimeout(()=>setNotif(null), 2600);
@@ -2388,17 +2390,7 @@ function TheCabalApp() {
                         cardWidth={200}
                         ownedIds={ownedIds}
                       />
-                      {/* Heart — overlaid bottom-right of card */}
-                      <button
-                        onClick={e=>{e.stopPropagation();toggleFav(revealCards[0]?.id);}}
-                        style={{
-                          position:"absolute", bottom:36, right:8, zIndex:50,
-                          background:"rgba(0,0,0,0.55)", border:"none", cursor:"pointer",
-                          fontSize:18, lineHeight:1, padding:"5px 7px", borderRadius:"50%",
-                          color:(st.favorites||[]).includes(revealCards[0]?.id)?"#e74c3c":"rgba(255,255,255,0.25)",
-                          transition:"color .15s",
-                        }}
-                      >♥</button>
+
                     </div>
                     <div style={{height:16}}/>
                     <button onClick={()=>setRD(true)} style={{
