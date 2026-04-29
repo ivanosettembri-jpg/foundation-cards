@@ -262,7 +262,7 @@ const PACK_PITY_IMAGES = [
     @keyframes slideUp    { from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);} }
     @keyframes cardReveal { from{opacity:0;transform:perspective(700px) rotateY(90deg) scale(.88);}to{opacity:1;transform:perspective(700px) rotateY(0) scale(1);} }
     @keyframes packFloat  { 0%,100%{transform:translateY(0) rotate(-.4deg);}50%{transform:translateY(-11px) rotate(.4deg);} }
-    @keyframes packShake  { 0%,100%{transform:rotate(0) scale(1);}15%{transform:rotate(-5deg) scale(1.04);}30%{transform:rotate(5deg) scale(1.04);}50%{transform:rotate(-3deg) scale(1.02);}70%{transform:rotate(3deg) scale(1.02);}90%{transform:rotate(-1deg);} }
+    @keyframes packShake  { 0%{transform:rotate(0) scale(1);}8%{transform:rotate(-6deg) scale(1.05);}18%{transform:rotate(6deg) scale(1.05);}28%{transform:rotate(-5deg) scale(1.04);}38%{transform:rotate(5deg) scale(1.04);}50%{transform:rotate(-3deg) scale(1.06);}62%{transform:rotate(3deg) scale(1.06);}74%{transform:rotate(-2deg) scale(1.03);}86%{transform:rotate(2deg) scale(1.03);}95%{transform:rotate(-1deg) scale(1.01);}100%{transform:rotate(0) scale(1);} }
     @keyframes packBurst  { 0%{transform:scale(1);opacity:1;filter:brightness(1);}35%{transform:scale(1.5);opacity:.9;filter:brightness(5);}100%{transform:scale(2.2);opacity:0;filter:brightness(1);} }
     @keyframes notifSlide { from{opacity:0;transform:translateX(-50%) translateY(-10px);}to{opacity:1;transform:translateX(-50%) translateY(0);} }
     @keyframes holoShimmerIdle {
@@ -1526,7 +1526,7 @@ function PackVisual({ special, phase, onAnimEnd, colorIdx=0 }) {
 
   const anim = {
     idle:    "packFloat 3s ease-in-out infinite",
-    shaking: "packShake 0.55s ease",
+    shaking: "packShake 1.4s ease",
     burst:   "packBurst 0.4s ease forwards",
   }[phase] || "none";
 
