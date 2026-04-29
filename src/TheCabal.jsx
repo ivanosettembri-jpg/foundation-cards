@@ -1848,7 +1848,7 @@ async function loadFoundationPool(onProgress) {
     const n = freq[r.creator] || 1;
     return {
       id:       r.collection.slice(-8) + "_" + r.token_id,
-      handle:   r.creator.slice(0,6) + "..." + r.creator.slice(-4),
+      handle:   r.creator ? r.creator.slice(0,6) + "..." + r.creator.slice(-4) : (r.collection ? r.collection.slice(0,6) + "..." + r.collection.slice(-4) : ""),
       name:     "FND #" + String(idx+1).padStart(6,"0"),
       rarity:   n >= 100 ? "LR" : n >= 30 ? "UR" : n >= 8 ? "R" : "C",
       cat:      "Foundation",
@@ -1948,7 +1948,7 @@ function TheCabalApp() {
         const n = freq[r.creator]||1;
         return {
           id:       r.collection.slice(-8)+"_"+r.token_id,
-          handle:   r.creator.slice(0,6)+"..."+r.creator.slice(-4),
+          handle:   r.creator ? r.creator.slice(0,6)+"..."+r.creator.slice(-4) : (r.collection ? r.collection.slice(0,6)+"..."+r.collection.slice(-4) : ""),
           name:     "FND #"+String(idx+1).padStart(6,"0"),
           rarity:   n>=100?"LR":n>=30?"UR":n>=8?"R":"C",
           cat:      "Foundation",
@@ -2382,15 +2382,7 @@ function TheCabalApp() {
                   /* ── Swipe stack — Take All BELOW ── */
                   <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:16}}>
                     {/* Heart fav button — top right of stack, discrete */}
-                    {revealCards.length > 0 && (
-                      <div style={{alignSelf:"flex-end",marginBottom:-8,marginRight:4}}>
-                        <button onClick={()=>toggleFav(revealCards[0]?.id)} style={{
-                          background:"transparent",border:"none",cursor:"pointer",
-                          fontSize:16,color:(st.favorites||[]).includes(revealCards[0]?.id)?"#e74c3c":"#2a2a2a",
-                          transition:"color .15s",padding:"2px 8px",
-                        }}>♥</button>
-                      </div>
-                    )}
+
                     <SwipeableCardStack
                       cards={revealCards.map(c => rarityUpgrades[c.id] ? {...c, rarity: rarityUpgrades[c.id].rarity} : c)}
                       onComplete={handleStackComplete}
@@ -2481,7 +2473,7 @@ function TheCabalApp() {
 ══════════════════════════════════════════════════════ */
 
 /* ── CardModal — full-screen card viewer, opened by clicking a card in collection ── */
-function CardModal({ card, onClose }) {
+function CardModal({ card, onClose, isFav, onToggleFav }) {
   const MODAL_W = Math.min(320, window.innerWidth - 40);
 
   // Lock scroll on body while modal is open; close on Escape
@@ -2527,6 +2519,19 @@ function CardModal({ card, onClose }) {
             fontFamily:"'DM Mono',monospace", lineHeight:1,
           }}
         >×</button>
+        {onToggleFav && (
+          <button
+            onClick={e=>{e.stopPropagation();onToggleFav(card.id);}}
+            style={{
+              position:"absolute", top:-14, left:-14,
+              width:28, height:28, borderRadius:"50%",
+              background:"#1a1a1a", border:"1px solid #333",
+              color:isFav?"#e74c3c":"#555", fontSize:16, cursor:"pointer",
+              display:"flex", alignItems:"center", justifyContent:"center",
+              lineHeight:1, transition:"color .15s",
+            }}
+          >♥</button>
+        )}
       </div>
 
       {/* Hint row — below the card, outside stopPropagation */}
@@ -2669,7 +2674,7 @@ function CollectionView({ unique, notify, favoritesArr, onToggleFav }) {
 
   return (
     <div style={{animation:"slideUp .3s ease"}}>
-      {modalCard && <CardModal card={modalCard} onClose={()=>setModalCard(null)}/>}
+      {modalCard && <CardModal card={modalCard} onClose={()=>setModalCard(null)} isFav={favorites.has(modalCard?.id)} onToggleFav={onToggleFav}/>}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
         <div>
           <div style={{fontSize:8,color:"#555",letterSpacing:2}}>COLLECTION</div>
