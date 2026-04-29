@@ -2442,7 +2442,7 @@ function TheCabalApp() {
           </div>
         )}
 
-        {tab==="collection" && <CollectionView unique={uniqueCards} notify={notify} favorites={new Set(st.favorites || [])} onToggleFav={toggleFav}/>}
+        {tab==="collection" && <CollectionView unique={uniqueCards} notify={notify} favoritesArr={st.favorites || []} onToggleFav={toggleFav}/>}
         {tab==="forge"      && <ForgeView uniqueCards={uniqueCards} st={st} save={save} notify={notify}/>}
         {tab==="missions"   && <MissionsView st={st} save={save} notify={notify} uniqueCards={uniqueCards}/>}
       </main>
@@ -2629,22 +2629,13 @@ function LazyCard({ card, dispW, notify, count, onCardClick }) {
   );
 }
 
-function CollectionView({ unique, notify, favorites, onToggleFav }) {
+function CollectionView({ unique, notify, favoritesArr, onToggleFav }) {
   const [showFavOnly,setShowFavOnly] = useState(false);
   const [modalCard, setModalCard] = useState(null);
   const [search,setSearch] = useState("");
-
-  // Build a set of collected ids for placeholder logic
-  const collectedIds = useMemo(() => new Set(unique.map(c=>c.id)), [unique]);
+  const favorites = useMemo(() => new Set(favoritesArr || []), [favoritesArr]);
 
   // With 343k cards we never render placeholders — collection shows only owned cards
-
-  // Collected cards as a map for fast lookup
-  const collectedMap = useMemo(() => {
-    const m = {};
-    unique.forEach(c => { m[c.id] = c; });
-    return m;
-  }, [unique]);
 
   // When search or favorites active, show only matching collected cards
   const isFiltering = search.trim() !== "" || showFavOnly;
@@ -2667,7 +2658,7 @@ function CollectionView({ unique, notify, favorites, onToggleFav }) {
       if (rd!==0) return rd;
       return a.name.localeCompare(b.name);
     });
-  }, [unique, search, showFavOnly, favorites]);
+  }, [unique, search, showFavOnly, favoritesArr]);
 
   const inp = {fontFamily:"'DM Mono',monospace",background:"#0a0a0a",border:"1px solid #1e1e1e",
     borderRadius:4,color:"#aaa",fontSize:11,padding:"5px 9px",outline:"none"};
@@ -2718,7 +2709,7 @@ function CollectionView({ unique, notify, favorites, onToggleFav }) {
                 if (rd !== 0) return rd;
                 return a.name.localeCompare(b.name);
               }).map(card => (
-                <LazyCard key={card._uid || card.id} card={card} dispW={CARD_W} notify={notify} count={card.count} onCardClick={setModalCard} isFav={favorites.has(card.id)} onToggleFav={onToggleFav}/>
+                <LazyCard key={card._uid || card.id} card={card} dispW={CARD_W} notify={notify} count={card.count} onCardClick={setModalCard} isFav={(favoritesArr||[]).includes(card.id)} onToggleFav={onToggleFav}/>
               ))}
             </div>
       )}
