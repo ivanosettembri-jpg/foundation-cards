@@ -91,6 +91,10 @@ async function getAlchemyThumb(collection, tokenId) {
       };
       _emitNFTMeta(key);
     }
+    if (_alchemyCache[key]) {
+      // Warm browser cache immediately
+      const img = new Image(); img.src = _alchemyCache[key];
+    }
     return _alchemyCache[key];
   } catch { _alchemyCache[key] = null; return null; }
   })();
@@ -114,16 +118,23 @@ function CardImage({ card, style }) {
     if (!card.image_cid) return;
     let cancelled = false;
     if (card.collection && card.token_id) {
-      getAlchemyThumb(card.collection, card.token_id).then(url => {
-        if (cancelled) return;
-        setLoading(false);
-        if (url) { setSrc(url); return; }
-        setSrc(`https://w3s.link/ipfs/${card.image_cid}/nft.png`);
-      }).catch(() => {
-        if (!cancelled) { setLoading(false); setSrc(`https://w3s.link/ipfs/${card.image_cid}/nft.png`); }
-      });
+      const tryAlchemy = (attempt) =>
+        getAlchemyThumb(card.collection, card.token_id).then(url => {
+          if (cancelled) return;
+          if (url) { setLoading(false); setSrc(url); return; }
+          // Alchemy had no image — retry once after 3s, then fall back to IPFS
+          if (attempt < 2) {
+            setTimeout(() => { if (!cancelled) tryAlchemy(attempt + 1); }, 3000);
+          } else {
+            setLoading(false);
+            if (card.image_cid) setSrc(`https://w3s.link/ipfs/${card.image_cid}/nft.png`);
+          }
+        }).catch(() => {
+          if (!cancelled) { setLoading(false); if (card.image_cid) setSrc(`https://w3s.link/ipfs/${card.image_cid}/nft.png`); }
+        });
+      tryAlchemy(1);
     } else {
-      setSrc(`https://w3s.link/ipfs/${card.image_cid}/nft.png`);
+      if (card.image_cid) setSrc(`https://w3s.link/ipfs/${card.image_cid}/nft.png`);
     }
     return () => { cancelled = true; };
   }, [card.id]);
@@ -2128,14 +2139,16 @@ function TheCabalApp() {
       // Show creative loading message
       const msgs = ["i have a good feeling about this", "are you feeling lucky, ser?", "will it be ai slop?", "hold on ser", "bribing the validators...", "consulting the oracle...", "summoning from the chain...", "asking gm to the network...", "shuffling 343k tokens...", "the blockchain never lies"];
       setLoadMsg(msgs[Math.floor(Math.random()*msgs.length)]);
-      // Pre-fetch all Alchemy metadata in parallel (max 2.5s wait)
+      // Pre-fetch all Alchemy thumbs — wait up to 5s for all, or reveal when first is ready
       const prefetches = toLoad
         .filter(c => c.collection && c.token_id)
         .map(c => getAlchemyThumb(c.collection, c.token_id).catch(()=>null));
-      Promise.race([
-        Promise.all(prefetches),
-        new Promise(res => setTimeout(res, 2500)),
-      ]).then(() => { setLoadMsg(""); setPhase("revealing"); });
+      // Reveal as soon as first card image is ready (or 5s timeout)
+      const firstReady = prefetches[0] || Promise.resolve(null);
+      Promise.race([firstReady, new Promise(res => setTimeout(res, 5000))])
+        .then(() => { setLoadMsg(""); setPhase("revealing"); });
+      // Rest continue loading in background
+      Promise.all(prefetches).catch(()=>{});
     }
   }, []);
 
