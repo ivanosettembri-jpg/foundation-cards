@@ -8,7 +8,9 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 // Images served via our Vercel proxy (/api/ipfs/{cid}).
 // Server-side: fetches IPFS, tries /nft.png and direct, resizes to 400px WebP.
 // Cached immutably on Vercel CDN after first fetch.
-function ipfsUrl(cid) {
+function ipfsUrl(cid, collection, tokenId) {
+  if (collection && tokenId)
+    return `/api/ipfs/${cid}?contract=${collection}&tokenId=${tokenId}`;
   return `/api/ipfs/${cid}`;
 }
 
@@ -166,7 +168,7 @@ const ASSET = {
   packPity:     null,
   card:    () => null,
   cardPfp: (card) => {
-    return card && card.image_cid ? ipfsUrl(card.image_cid) : null;
+    return card && card.image_cid ? ipfsUrl(card.image_cid, card.collection, card.token_id) : null;
   },
 };
 
@@ -492,7 +494,7 @@ function downloadCardPNG(card) {
   };
   loadImg(ASSET.card(card.id))
     .then(dl)
-    .catch(() => loadImg((card.image_cid ? ipfsUrl(card.image_cid) : null)).then(dl).catch(() => dl(null)));
+    .catch(() => loadImg((card.image_cid ? ipfsUrl(card.image_cid, card.collection, card.token_id) : null)).then(dl).catch(() => dl(null)));
 }
 
 /* ══════════════════════════════════════════════════════
@@ -721,7 +723,7 @@ function CardFace({ card, dispW, holoPos={x:0.5,y:0.5}, holoActive=false, allowT
       {/* Art */}
       <div style={{position:"absolute",left:ART_L,top:ART_T,width:ART_W,height:ART_H_PCT,overflow:"hidden",zIndex:1}}>
         <img
-          src={(card.image_cid ? ipfsUrl(card.image_cid) : null)}
+          src={(card.image_cid ? ipfsUrl(card.image_cid, card.collection, card.token_id) : null)}
           alt=""
           onError={e=>ipfsOnError(e, card.image_cid)}
           loading="lazy" style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"center 15%",display:"block"}}
@@ -732,7 +734,7 @@ function CardFace({ card, dispW, holoPos={x:0.5,y:0.5}, holoActive=false, allowT
         <div style={{position:"absolute",left:ART_L,top:ART_T,width:ART_W,height:ART_H_PCT,overflow:"hidden",zIndex:9,pointerEvents:"none"}}>
           <img
             loading="lazy"
-            src={(card.image_cid ? ipfsUrl(card.image_cid) : null)}
+            src={(card.image_cid ? ipfsUrl(card.image_cid, card.collection, card.token_id) : null)}
             alt=""
             onError={e=>ipfsOnError(e, card.image_cid)}
             style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"center 15%",display:"block",opacity:0.72}}
@@ -2873,7 +2875,7 @@ function ForgeView({ uniqueCards, st, save, notify }) {
                   }}>
                   {/* Photo */}
                   <div style={{ aspectRatio:"1/1", background:"#0d0d0d", overflow:"hidden" }}>
-                    <img loading="lazy" src={(card.image_cid ? ipfsUrl(card.image_cid) : null)} alt=""
+                    <img loading="lazy" src={(card.image_cid ? ipfsUrl(card.image_cid, card.collection, card.token_id) : null)} alt=""
                       onError={e=>ipfsOnError(e, card.image_cid)}
                       style={{ width:"100%", height:"100%", objectFit:"cover",
                         filter: isSelected ? "none" : "grayscale(0.35) brightness(0.6)",

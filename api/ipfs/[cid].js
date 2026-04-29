@@ -1,48 +1,58 @@
-// Vercel IPFS proxy — races multiple sources, streams raw bytes through.
-// No native binaries (no sharp) = no platform compatibility issues.
-// Vercel CDN caches immutably after first fetch.
-
-const SOURCES = [
-  (cid) => `https://w3s.link/ipfs/${cid}/nft.png`,
-  (cid) => `https://w3s.link/ipfs/${cid}`,
-  (cid) => `https://nftstorage.link/ipfs/${cid}/nft.png`,
-  (cid) => `https://nftstorage.link/ipfs/${cid}`,
-  (cid) => `https://ipfs.io/ipfs/${cid}/nft.png`,
-  (cid) => `https://ipfs.io/ipfs/${cid}`,
-];
+// Vercel proxy — uses Alchemy NFT API to get images.
+// Alchemy has all Foundation NFTs crawled and cached — fast and reliable.
 
 export default async function handler(req, res) {
   const { cid } = req.query;
+  if (!cid) return res.status(400).json({ error: 'Missing cid' });
 
-  if (!cid || !/^Qm[1-9A-HJ-NP-Za-km-z]{44}$/.test(cid)) {
-    return res.status(400).json({ error: 'Invalid CID' });
+  const contract = req.query.contract;
+  const tokenId  = req.query.tokenId;
+  const apiKey   = process.env.ALCHEMY_API_KEY || 'l40Adj6lx9enV3reVqZMr';
+
+  // If we have contract+tokenId use Alchemy NFT API
+  if (contract && tokenId) {
+    try {
+      const url = `https://eth-mainnet.g.alchemy.com/nft/v3/${apiKey}/getNFTMetadata?contractAddress=${contract}&tokenId=${tokenId}&refreshCache=false`;
+      const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      if (r.ok) {
+        const data = await r.json();
+        const imgUrl = data?.image?.cachedUrl || data?.image?.thumbnailUrl || data?.image?.originalUrl;
+        if (imgUrl) {
+          // Redirect to Alchemy's CDN — browser fetches directly, no proxy needed
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          return res.redirect(302, imgUrl);
+        }
+      }
+    } catch {}
   }
 
+  // Fallback: IPFS race
+  const SOURCES = [
+    `https://w3s.link/ipfs/${cid}/nft.png`,
+    `https://w3s.link/ipfs/${cid}`,
+    `https://nftstorage.link/ipfs/${cid}/nft.png`,
+    `https://nftstorage.link/ipfs/${cid}`,
+  ];
+
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8500);
+  setTimeout(() => controller.abort(), 8000);
 
   try {
-    const result = await Promise.any(
-      SOURCES.map(url => fetch(url(cid), {
+    const { buf, ct } = await Promise.any(
+      SOURCES.map(url => fetch(url, {
         signal: controller.signal,
         headers: { 'User-Agent': 'Mozilla/5.0' },
       }).then(async r => {
         if (!r.ok) throw new Error(r.status);
         const ct = r.headers.get('content-type') || '';
-        if (ct.includes('text/html') || ct.includes('application/json')) throw new Error('not-image');
-        const buf = Buffer.from(await r.arrayBuffer());
-        return { buf, ct };
+        if (ct.includes('text/html')) throw new Error('html');
+        return { buf: Buffer.from(await r.arrayBuffer()), ct };
       }))
     );
-
-    clearTimeout(timer);
-    res.setHeader('Content-Type', result.ct || 'image/png');
+    res.setHeader('Content-Type', ct);
     res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    return res.status(200).send(result.buf);
-
+    return res.status(200).send(buf);
   } catch {
-    clearTimeout(timer);
     return res.status(404).json({ error: 'Not found' });
   }
 }
