@@ -1675,6 +1675,7 @@ function TheCabalApp() {
   const [ownedIds,setOwnedIds]= useState(new Set()); // ids owned BEFORE current reveal
   const importRef = useRef(null);
   const [showGyroPrompt, setShowGyroPrompt] = useState(false);
+  const [poolsReady, setPoolsReady] = useState(false);
   const [autoClaimToken, setAutoClaimToken] = useState(() => {
     const m = window.location.pathname.match(/\/claim\/([A-Z0-9]{6,10})/i);
     return m ? m[1].toUpperCase() : null;
@@ -1772,7 +1773,7 @@ function TheCabalApp() {
 
   /* open single pack */
   const handleOpenPack = useCallback(() => {
-    if (st.packs<1||phase!=="idle") return;
+    if (st.packs<1||phase!=="idle"||!poolsReady) return;
     setOwnedIds(new Set(st.collection.map(c=>c.id)));
     const lucky = nextIsLucky;
     luckyRef.current = lucky;
@@ -1795,7 +1796,7 @@ function TheCabalApp() {
 
   /* open x10 */
   const handleOpen10 = useCallback(() => {
-    if (st.packs<10||phase!=="idle") return;
+    if (st.packs<10||phase!=="idle"||!poolsReady) return;
     setOwnedIds(new Set(st.collection.map(c=>c.id)));
     setRC(draw10Packs());
     setRD(false);
@@ -2019,7 +2020,7 @@ function TheCabalApp() {
                 {/* "click / tap to open" hint */}
                 {st.packs>0 && (
                   <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"#444",letterSpacing:2,textAlign:"center"}}>
-                    {window.matchMedia?.("(pointer: coarse)").matches ? "tap to open" : "click to open"}
+                    {!poolsReady ? "loading cards..." : window.matchMedia?.("(pointer: coarse)").matches ? "tap to open" : "click to open"}
                   </div>
                 )}
 
