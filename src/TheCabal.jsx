@@ -1949,14 +1949,14 @@ function LoadingScreen({ progress, error, onFile }) {
    FIREBASE — Google Auth + Firestore cloud save
    Replace FIREBASE_CONFIG with your own project config
 ══════════════════════════════════════════════════════ */
-const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyB5u27w0ziBf9pGw04cFf-xhDBCZ9H5kEY",
+const FIREBASE_CONFIG = import.meta.env.VITE_FIREBASE_API_KEY ? {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: "networkedcards.firebaseapp.com",
   projectId: "networkedcards",
   storageBucket: "networkedcards.firebasestorage.app",
   messagingSenderId: "1000213692591",
   appId: "1:1000213692591:web:b7220dd156dfffd388d45a"
-};
+} : null;
 
 let _fbApp = null, _fbAuth = null, _fbDb = null;
 function getFirebaseAuth() {
