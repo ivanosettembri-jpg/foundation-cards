@@ -47,12 +47,19 @@ async function fetchSaleRarity(card, onRarityUpdate) {
     const sales = data?.nftSales || [];
     if (!sales.length) return;
     // Find highest sale in ETH (sellerFee is in wei)
-    const maxWei = Math.max(...sales.map(s => parseInt(s.sellerFee?.amount || s.royaltyFee?.amount || 0)));
+    // Alchemy returns sellerFee in wei, or taker/maker price in various formats
+    const maxWei = Math.max(...sales.map(s => {
+      const raw = s.sellerFee?.amount || s.taker?.price || s.maker?.price ||
+                  s.sellerFee?.amount || 0;
+      return parseInt(raw) || 0;
+    }));
     const maxEth = maxWei / 1e18;
+    console.log("Sale found:", maxEth.toFixed(4), "ETH for", card.collection, card.token_id);
     const newRarity =
-      maxEth >= 1   ? "LR" :
-      maxEth >= 0.1 ? "UR" :
-      maxEth >= 0.01? "R"  : null;
+      maxEth >= 10  ? "LR" :
+      maxEth >= 2   ? "UR" :
+      maxEth >= 0.5 ? "R"  : null;
+    // Note: C = 0–0.49 ETH (no upgrade needed, it's the default)
     if (newRarity && RARITY_ORDER.indexOf(newRarity) < RARITY_ORDER.indexOf(card.rarity)) {
       onRarityUpdate(card.id, newRarity, maxEth);
     }
@@ -1768,7 +1775,7 @@ function GyroPermissionPrompt({ onDone }) {
 function today() { return new Date().toISOString().slice(0,10); }
 const INIT = {
   packs:3, lastRegen:Date.now(), pullCount:0, totalOpened:0,
-  collection:[], day:today(),
+  collection:[], favorites:[], day:today(),
   missions:{packsOpened:0,urPulled:false,claimed:false,burned:false,allRarities:false},
   weekly:{packsOpened:0,urPulled:0,newUnique:0,forgeUsed:0,gotLucky:false,claimed:false,week:""},
   ic:{best:0,neverTut:false},
@@ -1817,7 +1824,7 @@ async function loadFoundationPool(onProgress) {
     if (done) break;
     chunks.push(value);
     received += value.length;
-    if (total) onProgress(0.1 + 0.6 * (received / total));
+    if (total) onProgress(Math.min(0.69, 0.1 + 0.6 * (received / total)));
   }
   onProgress(0.7);
 
@@ -1875,7 +1882,7 @@ function LoadingScreen({ progress, error, onFile }) {
   if (error === "network") return (
     <div style={{height:"100vh",display:"flex",flexDirection:"column",alignItems:"center",
       justifyContent:"center",background:"#080808",padding:32, gap:20}}>
-      <div style={{...mono,fontSize:9,color:"#555",letterSpacing:3}}>THE CABAL</div>
+      <div style={{...mono,fontSize:9,color:"#555",letterSpacing:3}}>networked.cards</div>
       <div style={{...mono,fontSize:7,color:"#444",letterSpacing:1,textAlign:"center",maxWidth:260,lineHeight:1.8}}>
         Could not fetch cards automatically.<br/>
         Upload the Foundation CSV to continue.
@@ -1906,7 +1913,7 @@ function LoadingScreen({ progress, error, onFile }) {
   return (
     <div style={{height:"100vh",display:"flex",flexDirection:"column",alignItems:"center",
       justifyContent:"center",background:"#080808",padding:24,gap:12}}>
-      <div style={{...mono,fontSize:9,color:"#555",letterSpacing:3}}>THE CABAL</div>
+      <div style={{...mono,fontSize:9,color:"#555",letterSpacing:3}}>networked.cards</div>
       <div style={{...mono,fontSize:7,color:"#333",letterSpacing:2}}>
         LOADING FOUNDATION {progress < 70 ? "↓" : progress < 90 ? "◌" : "◉"} {progress}%
       </div>
@@ -2052,6 +2059,14 @@ function TheCabalApp() {
     }, 1000);
     return () => clearInterval(id);
   }, [loaded, persist]);
+
+  const toggleFav = useCallback((cardId) => {
+    save(prev => {
+      const favs = new Set(prev.favorites || []);
+      if (favs.has(cardId)) favs.delete(cardId); else favs.add(cardId);
+      return {...prev, favorites: favs};
+    });
+  }, [save]);
 
   const notify = useCallback((msg) => {
     setNotif(msg); setTimeout(()=>setNotif(null), 2600);
@@ -2224,7 +2239,7 @@ function TheCabalApp() {
   const mins=Math.floor(regenS/60), secs=regenS%60;
   const timerStr=`${mins}:${String(secs).padStart(2,"0")}`;
   const timerPct=((PACK_REGEN-regenS)/PACK_REGEN)*100;
-  const navItems=[{k:"gacha",l:"GACHA"},{k:"collection",l:"COLLECTION"},{k:"forge",l:"FORGE"},{k:"missions",l:"MISSIONS"}];
+  const navItems=[{k:"gacha",l:"GACHA"},{k:"collection",l:"COLLECTION"},{k:"missions",l:"MISSIONS"}];
 
   return (
     <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",background:"#060606",
@@ -2364,19 +2379,32 @@ function TheCabalApp() {
                 {!revealDone ? (
                   /* ── Swipe stack — Take All BELOW ── */
                   <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:16}}>
+                    {/* Heart fav button — top right of stack, discrete */}
+                    {revealCards.length > 0 && (() => {
+                      const topCard = revealCards[revealCards.length-1];
+                      return topCard ? (
+                        <div style={{alignSelf:"flex-end",marginBottom:-8,marginRight:4}}>
+                          <button onClick={()=>toggleFav(topCard.id)} style={{
+                            background:"transparent",border:"none",cursor:"pointer",
+                            fontSize:14,color:(st.favorites||[]).includes(topCard.id)?"#e74c3c":"#2a2a2a",
+                            transition:"color .15s",padding:"2px 6px",
+                          }}>♥</button>
+                        </div>
+                      ) : null;
+                    })()}
                     <SwipeableCardStack
                       cards={revealCards.map(c => rarityUpgrades[c.id] ? {...c, rarity: rarityUpgrades[c.id].rarity} : c)}
                       onComplete={handleStackComplete}
                       cardWidth={200}
                       ownedIds={ownedIds}
                     />
-                    <button onClick={handleTakeAll} style={{
+                    <button onClick={()=>setRD(true)} style={{
                       fontFamily:"'DM Mono',monospace",background:"transparent",
-                      border:"1px solid #2a2a2a",borderRadius:5,padding:"8px 28px",
-                      color:"#484848",fontSize:9,letterSpacing:2,cursor:"pointer",transition:"all .2s"}}
-                      onMouseEnter={e=>{e.target.style.borderColor="#555";e.target.style.color="#999";}}
-                      onMouseLeave={e=>{e.target.style.borderColor="#2a2a2a";e.target.style.color="#484848";}}>
-                      TAKE ALL ({revealCards.length})
+                      border:"1px solid #1a1a1a",borderRadius:5,padding:"6px 20px",
+                      color:"#333",fontSize:8,letterSpacing:1,cursor:"pointer",transition:"all .2s"}}
+                      onMouseEnter={e=>{e.target.style.borderColor="#2a2a2a";e.target.style.color="#555";}}
+                      onMouseLeave={e=>{e.target.style.borderColor="#1a1a1a";e.target.style.color="#333";}}>
+                      skip opening
                     </button>
                   </div>
                 ) : (
@@ -2416,7 +2444,7 @@ function TheCabalApp() {
           </div>
         )}
 
-        {tab==="collection" && <CollectionView unique={uniqueCards} notify={notify}/>}
+        {tab==="collection" && <CollectionView unique={uniqueCards} notify={notify} favorites={new Set(st.favorites || [])} onToggleFav={toggleFav}/>}
         {tab==="forge"      && <ForgeView uniqueCards={uniqueCards} st={st} save={save} notify={notify}/>}
         {tab==="missions"   && <MissionsView st={st} save={save} notify={notify} uniqueCards={uniqueCards}/>}
       </main>
@@ -2576,6 +2604,20 @@ function LazyCard({ card, dispW, notify, count, onCardClick }) {
               width:18,height:18,display:"flex",alignItems:"center",justifyContent:"center",
               fontSize:7,color:"#888",pointerEvents:"none",zIndex:2}}>×{count}</div>
           )}
+          {/* Heart / favorite button */}
+          {onToggleFav && (
+            <div
+              onClick={e=>{e.stopPropagation();onToggleFav(card.id);}}
+              style={{position:"absolute",top:4,right:"calc(50% - 60px)",
+                zIndex:10,cursor:"pointer",fontSize:12,
+                color:isFav?"#e74c3c":"#333",
+                transition:"color .15s, transform .1s",
+                lineHeight:1,
+              }}
+              onMouseEnter={e=>e.currentTarget.style.transform="scale(1.2)"}
+              onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}
+            >♥</div>
+          )}
 
         </>
       ) : (
@@ -2589,13 +2631,10 @@ function LazyCard({ card, dispW, notify, count, onCardClick }) {
   );
 }
 
-function CollectionView({ unique, notify }) {
-  const [filter,setFilter]   = useState("ALL");
-  const [catFilter,setCatFilter] = useState("ALL");
+function CollectionView({ unique, notify, favorites, onToggleFav }) {
+  const [showFavOnly,setShowFavOnly] = useState(false);
   const [modalCard, setModalCard] = useState(null);
   const [search,setSearch] = useState("");
-  const [sort,setSort]     = useState("rarity");
-  const [sortDir,setSortDir] = useState("desc");  // desc = rarest first, asc = common first
 
   // Build a set of collected ids for placeholder logic
   const collectedIds = useMemo(() => new Set(unique.map(c=>c.id)), [unique]);
@@ -2610,24 +2649,27 @@ function CollectionView({ unique, notify }) {
   }, [unique]);
 
   // When search/filter active, show only matching collected cards
-  const isFiltering = filter !== "ALL" || catFilter !== "ALL" || search.trim() !== "";
+  const isFiltering = search.trim() !== "" || showFavOnly;
 
   const filteredCollected = useMemo(() => {
     let arr = unique;
-    if (filter!=="ALL") arr=arr.filter(c=>c.rarity===filter);
-    if (catFilter!=="ALL") arr=arr.filter(c=>c.cat.split("/").map(s=>s.trim()).includes(catFilter));
+    if (showFavOnly) arr = arr.filter(c => favorites.has(c.id));
     if (search) {
-      const q=search.toLowerCase();
-      arr=arr.filter(c=>c.handle.toLowerCase().includes(q)||c.name.toLowerCase().includes(q)||c.cat.toLowerCase().includes(q));
+      const q = search.toLowerCase();
+      arr = arr.filter(c => {
+        const key = c.collection && c.token_id ? `${c.collection}_${c.token_id}` : null;
+        const meta = key ? _nftMeta[key] : null;
+        const realName = (meta?.name || c.name || "").toLowerCase();
+        const collName = (meta?.collection || meta?.symbol || c.cat || "").toLowerCase();
+        return c.handle.toLowerCase().includes(q) || realName.includes(q) || collName.includes(q) || c.collection?.toLowerCase().includes(q);
+      });
     }
-    if (sort==="count") arr=[...arr].sort((a,b)=>b.count-a.count);
-    else if (sort==="rarity") arr=[...arr].sort((a,b)=>{
+    return [...arr].sort((a,b) => {
       const rd = RARITY_ORDER.indexOf(a.rarity) - RARITY_ORDER.indexOf(b.rarity);
-      if (rd!==0) return sortDir==="desc" ? rd : -rd;
+      if (rd!==0) return rd;
       return a.name.localeCompare(b.name);
     });
-    return arr;
-  }, [unique,filter,catFilter,search,sort,sortDir]);
+  }, [unique, search, showFavOnly, favorites]);
 
   const inp = {fontFamily:"'DM Mono',monospace",background:"#0a0a0a",border:"1px solid #1e1e1e",
     borderRadius:4,color:"#aaa",fontSize:11,padding:"5px 9px",outline:"none"};
@@ -2648,38 +2690,16 @@ function CollectionView({ unique, notify }) {
       </div>
 
       {/* ── Filter row ── */}
-      <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:8}}>
+      <div style={{display:"flex",gap:6,marginBottom:12}}>
         <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="search..."
           style={{...inp,flex:1,minWidth:90}}/>
-        {/* Rarity sort toggle */}
-        <button onClick={()=>setSortDir(d=>d==="desc"?"asc":"desc")} style={{
-          fontFamily:"'DM Mono',monospace",cursor:"pointer",fontSize:7.5,
-          padding:"4px 9px",borderRadius:3,transition:"all .15s",
-          background:"#0a0a0a",border:"1px solid #1e1e1e",color:"#555",
-          display:"flex",alignItems:"center",gap:5,
-        }}>
-          <span>{sortDir==="desc"?"LR → C":"C → LR"}</span>
-          <span style={{fontSize:8}}>{sortDir==="desc"?"↓":"↑"}</span>
-        </button>
-        {/* Rarity filter */}
-        {["ALL","LR","UR","R","C"].map(f=>(
-          <button key={f} onClick={()=>setFilter(f)} style={{
-            fontFamily:"'DM Mono',monospace",cursor:"pointer",fontSize:7.5,
-            padding:"4px 8px",borderRadius:3,transition:"all .15s",
-            background:filter===f?(f==="ALL"?"#181818":RARITIES[f]?.color+"18"):"transparent",
-            border:`1px solid ${filter===f?(f==="ALL"?"#333":RARITIES[f]?.color+"60"):"#1e1e1e"}`,
-            color:filter===f?(f==="ALL"?"#ccc":RARITIES[f]?.accent):"#555",
-          }}>{f==="ALL"?"ALL":RARITIES[f]?.name}</button>
-        ))}
-      </div>
-      {/* Type filter dropdown */}
-      <div style={{marginBottom:12}}>
-        <select value={catFilter} onChange={e=>setCatFilter(e.target.value)} style={{...inp,width:"100%"}}>
-          <option value="ALL">all types</option>
-          {["Foundation"].map(c=>(
-            <option key={c} value={c}>{c}</option>
-          ))}
-        </select>
+        <button onClick={()=>setShowFavOnly(f=>!f)} style={{
+          fontFamily:"'DM Mono',monospace",cursor:"pointer",fontSize:11,
+          padding:"4px 10px",borderRadius:3,transition:"all .15s",
+          background:showFavOnly?"#1a0a0a":"transparent",
+          border:`1px solid ${showFavOnly?"#c0392b40":"#1e1e1e"}`,
+          color:showFavOnly?"#e74c3c":"#444",
+        }}>♥</button>
       </div>
 
       {!isFiltering && unique.length>0 && (
@@ -2700,7 +2720,7 @@ function CollectionView({ unique, notify }) {
                 if (rd !== 0) return sortDir === "desc" ? rd : -rd;
                 return a.name.localeCompare(b.name);
               }).map(card => (
-                <LazyCard key={card._uid || card.id} card={card} dispW={CARD_W} notify={notify} count={card.count} onCardClick={setModalCard}/>
+                <LazyCard key={card._uid || card.id} card={card} dispW={CARD_W} notify={notify} count={card.count} onCardClick={setModalCard} isFav={favorites.has(card.id)} onToggleFav={onToggleFav}/>
               ))}
             </div>
       )}
@@ -4393,7 +4413,7 @@ async function downloadSummaryPng(player, turns, death, stats) {
     ctx.drawImage(logoImg, pad, CH+16, lw, lh);
   } catch {
     ctx.font = `bold 14px ${mono}`; ctx.fillStyle = "#d0d0d0";
-    ctx.fillText("THE CABAL", pad, CH+30);
+    ctx.fillText("networked.cards", pad, CH+30);
   }
   ctx.font = `10px ${mono}`; ctx.fillStyle = "#333";
   ctx.fillText("think you can do better? play at thecabal.cards", pad, CH+52);
