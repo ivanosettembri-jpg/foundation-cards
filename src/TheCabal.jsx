@@ -168,6 +168,14 @@ const RARITY_ORDER = ["LR","UR","R","C"];
    cardPfp() → live Twitter/X profile picture via unavatar.io
    Load order: local override → pfp → placeholder grid
 ══════════════════════════════════════════════════════ */
+const ASSET = {
+  packStandard: null,
+  packPity:     null,
+  card:    () => null,
+  cardPfp: () => null,  // IPFS mode — images come from IMG_PROXY(card._cid)
+};
+
+
 /* ══════════════════════════════════════════════════════
    IPFS CARD POOLS — loaded lazily from /pools/
    Each pool file is a JSON array of IPFS CIDs.
