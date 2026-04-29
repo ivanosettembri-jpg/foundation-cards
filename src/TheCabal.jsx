@@ -2558,7 +2558,7 @@ function CardModal({ card, onClose }) {
 }
 
 /* ── LazyCard — defers mounting FlippableCard until near viewport. ── */
-function LazyCard({ card, dispW, notify, count, onCardClick }) {
+function LazyCard({ card, dispW, notify, count, onCardClick, isFav, onToggleFav }) {
   const wrapRef  = useRef(null);
   const [visible, setVisible] = useState(false);
   const CARD_H = Math.round(dispW * (470/300));
