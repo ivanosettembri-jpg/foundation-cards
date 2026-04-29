@@ -113,25 +113,95 @@ const MAX_PACKS   = 10;
 const PACK_REGEN  = 90;    // seconds (1:30)
 const CARDS_PER   = 5;
 const LUCKY_CHANCE = 0.05;  // 5% chance per pack
+const SAVE_KEY    = "thecabal_save_v1";
 
-// ── Compatibility shims (ACCOUNTS is now dynamic via IPFS pools) ──
+const RARITIES = {
+  C:  { name:"Common",     short:"C",  color:"#555",    accent:"#999",    rate:0.7995 },
+  R:  { name:"Rare",       short:"R",  color:"#2563eb", accent:"#60a5fa", rate:0.1625 },
+  UR: { name:"Ultra Rare", short:"UR", color:"#b45309", accent:"#fbbf24", rate:0.0355 },
+  LR: { name:"Legendary",  short:"LR", color:"#9d174d", accent:"#f472b6", rate:0.0025 },
+};
+const RARITY_ORDER = ["LR","UR","R","C"];
 
-function cidToCard(cid, rarity) {
-  return {
-    id: cid,
-    handle: "@" + cid.slice(2, 10),
-    name: "#" + cid.slice(2, 8),
-    rarity,
-    cat: "Artist",
-    _cid: cid,
-  };
+/* ══════════════════════════════════════════════════════
+   ASSET PATHS
+   card()    → local override (user drops PNG in public/assets/cards/)
+   cardPfp() → live Twitter/X profile picture via unavatar.io
+   Load order: local override → pfp → placeholder grid
+══════════════════════════════════════════════════════ */
+const PFP_DATA = {};
+
+
+const ASSET = {
+  packStandard: null,
+  packPity:     null,
+  card:    () => null,
+  cardPfp: (handle) => {
+    const h = handle.replace(/^@/,"").toLowerCase();
+    return PFP_DATA[h] || null;
+  },
+};
+
+/* ══════════════════════════════════════════════════════
+   GENERATED AVATAR  — canvas-drawn, always visible.
+   Used as the art area background; real pfp overlays it
+   via <img draggable="false"> when available. Deterministic + looks great.
+══════════════════════════════════════════════════════ */
+function drawGeneratedAvatar(canvas, card) {
+  // Draw into a small canvas (will be stretched to art area by CSS)
+  const S = 200;
+  canvas.width = S; canvas.height = S;
+  const ctx = canvas.getContext("2d");
+  const r = RARITIES[card.rarity];
+
+  // Hash handle to a hue for variety
+  let hash = 0;
+  for (let i = 0; i < card.handle.length; i++) hash = (hash * 31 + card.handle.charCodeAt(i)) >>> 0;
+  const hue = hash % 360;
+
+  // Background: dark gradient from rarity color
+  const bg = ctx.createRadialGradient(S*0.5, S*0.42, S*0.05, S*0.5, S*0.5, S*0.75);
+  bg.addColorStop(0, `hsl(${hue},22%,14%)`);
+  bg.addColorStop(1, "#080808");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, S, S);
+
+  // Subtle geometric accent — concentric rings
+  ctx.strokeStyle = r.color + "28";
+  ctx.lineWidth = 1;
+  for (let rr = 20; rr < S * 0.7; rr += 18) {
+    ctx.beginPath(); ctx.arc(S/2, S/2, rr, 0, Math.PI*2); ctx.stroke();
+  }
+
+  // Circle backdrop for initials
+  const circR = S * 0.32;
+  const grd = ctx.createRadialGradient(S/2, S/2 - circR*0.2, circR*0.1, S/2, S/2, circR);
+  grd.addColorStop(0, r.color + "55");
+  grd.addColorStop(1, r.color + "18");
+  ctx.fillStyle = grd;
+  ctx.beginPath(); ctx.arc(S/2, S/2, circR, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = r.color + "70"; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(S/2, S/2, circR, 0, Math.PI*2); ctx.stroke();
+
+  // Initials (up to 2 chars)
+  const raw = card.name.replace(/[^a-zA-Z0-9]/g,"");
+  const initials = raw.length >= 2
+    ? (raw[0] + raw[1]).toUpperCase()
+    : raw[0]?.toUpperCase() || "?";
+  const fontSize = initials.length > 1 ? S * 0.29 : S * 0.36;
+  ctx.fillStyle = r.accent;
+  ctx.font = `500 ${fontSize}px "DM Mono","Courier New",monospace`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(initials, S/2, S/2 + fontSize*0.05);
+
+  // Handle text at bottom
+  ctx.fillStyle = r.color + "80";
+  ctx.font = `400 ${S*0.068}px "DM Mono","Courier New",monospace`;
+  ctx.textBaseline = "alphabetic";
+  const ht = card.handle.replace(/^@/,"");
+  ctx.fillText(ht.length > 14 ? ht.slice(0,13)+"…" : ht, S/2, S*0.91);
 }
-
-const ACCOUNTS = [];  // empty — pool-based, no static list
-// Simple function-based lookups instead of Proxy (safer with minifiers)
-const ACCOUNTS_BY_ID = { _get(id) { return id && id.startsWith('Qm') ? cidToCard(id, 'C') : undefined; } };
-const SERIAL_MAP = {};
-
 
 /* ══════════════════════════════════════════════════════
    STORAGE  (localStorage + optional Claude.ai window.storage)
@@ -152,81 +222,51 @@ const Storage = {
   },
 };
 
-const SAVE_KEY    = "thecabal_save_v1";
-
-const RARITIES = {
-  C:  { name:"Common",     short:"C",  color:"#555",    accent:"#999",    rate:0.7995 },
-  R:  { name:"Rare",       short:"R",  color:"#2563eb", accent:"#60a5fa", rate:0.1625 },
-  UR: { name:"Ultra Rare", short:"UR", color:"#b45309", accent:"#fbbf24", rate:0.0355 },
-  LR: { name:"Legendary",  short:"LR", color:"#9d174d", accent:"#f472b6", rate:0.0025 },
-};
-const RARITY_ORDER = ["LR","UR","R","C"];
-
 /* ══════════════════════════════════════════════════════
-   ASSET PATHS
-   card()    → local override (user drops PNG in public/assets/cards/)
-   cardPfp() → live Twitter/X profile picture via unavatar.io
-   Load order: local override → pfp → placeholder grid
+   151 ACCOUNTS  (10 LR · 21 UR · 32 R · 88 C)
+   Card art loads live from each account's Twitter pfp
+   via unavatar.io — no images to download.
 ══════════════════════════════════════════════════════ */
-const ASSET = {
-  packStandard: null,
-  packPity:     null,
-  card:    () => null,
-  cardPfp: () => null,  // IPFS mode — images come from IMG_PROXY(card._cid)
-};
+const ACCOUNTS = [];
 
 
-/* ══════════════════════════════════════════════════════
-   IPFS CARD POOLS — loaded lazily from /pools/
-   Each pool file is a JSON array of IPFS CIDs.
-   Images served via wsrv.nl proxy (auto-resize + WebP).
-══════════════════════════════════════════════════════ */
-const IPFS_GATEWAY = "https://ipfs.io/ipfs/";
-const IMG_PROXY = (cid, w=400) =>
-  `https://wsrv.nl/?url=${encodeURIComponent(IPFS_GATEWAY + cid)}&w=${w}&output=webp&q=75&n=-1`;
-
-// Loaded pool arrays — filled by loadPools()
-const POOLS = { LR: [], UR: [], R: [], C: [] };
-let POOLS_READY = false;
-const POOL_LOAD_PROMISE = { current: null };
-
-async function loadPools() {
-  if (POOLS_READY) return;
-  if (POOL_LOAD_PROMISE.current) return POOL_LOAD_PROMISE.current;
-  POOL_LOAD_PROMISE.current = (async () => {
-    // Load LR, UR, R immediately; load C chunks lazily in background
-    await Promise.all(['LR','UR','R'].map(async r => {
-      try {
-        const res = await fetch(`/pools/pool_${r}.json`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        POOLS[r] = await res.json();
-      } catch(e) { POOLS[r] = []; }
-    }));
-    POOLS_READY = true;
-    // Load C chunks in background (all 10, ~27k cards each = 276k total)
-    for (let i = 0; i < 10; i++) {
-      fetch(`/pools/pool_C_${i}.json`)
-        .then(r => r.ok ? r.json() : [])
-        .then(chunk => { POOLS.C = POOLS.C.concat(chunk); })
-        .catch(() => {});
-    }
-  })();
-  return POOL_LOAD_PROMISE.current;
-}
-
-// Minimal ACCOUNTS shim — keeps rest of codebase working
-// Each "account" is just {id, rarity, handle, name, cat} derived from CID
-function pickFromPool(rarity) {
-  const pool = POOLS[rarity];
-  if (!pool.length) return null;
-  const cid = pool[Math.floor(Math.random() * pool.length)];
-  return cidToCard(cid, rarity);
-}
-
-// Legacy shims (referenced elsewhere in the code)
-
+const SERIAL_MAP = {};
 
 // O(1) lookup by id — used to reconstruct card data from compact save format
+/* ══════════════════════════════════════════════════════
+   IPFS CARD POOLS
+══════════════════════════════════════════════════════ */
+const IMG_PROXY = (cid, w=400) =>
+  `https://wsrv.nl/?url=${encodeURIComponent("https://ipfs.io/ipfs/"+cid)}&w=${w}&output=webp&q=75&n=-1`;
+
+const POOLS = { LR:[], UR:[], R:[], C:[] };
+let _poolsLoaded = false;
+let _poolPromise = null;
+
+function loadPools() {
+  if (_poolsLoaded) return Promise.resolve();
+  if (_poolPromise) return _poolPromise;
+  _poolPromise = Promise.all(["LR","UR","R"].map(r =>
+    fetch(`/pools/pool_${r}.json`).then(res => res.json()).then(data => { POOLS[r] = data; }).catch(()=>{})
+  )).then(() => {
+    _poolsLoaded = true;
+    for (let i = 0; i < 10; i++) {
+      fetch(`/pools/pool_C_${i}.json`).then(r=>r.json()).then(chunk=>{ POOLS.C = POOLS.C.concat(chunk); }).catch(()=>{});
+    }
+  });
+  return _poolPromise;
+}
+
+function pickFromPool(rarity) {
+  const pool = POOLS[rarity];
+  if (!pool || !pool.length) return null;
+  const cid = pool[Math.floor(Math.random() * pool.length)];
+  return { id: cid, _cid: cid, handle: "@"+cid.slice(2,10), name: "#"+cid.slice(2,8), rarity, cat: "Artist" };
+}
+
+
+const ACCOUNTS_BY_ID = new Proxy({}, { get(_, id) { return id && id.startsWith("Qm") ? { id, _cid:id, handle:"@"+id.slice(2,10), name:"#"+id.slice(2,8), rarity:"C", cat:"Artist" } : undefined; } });
+
 /* ══════════════════════════════════════════════════════
    GACHA ENGINE
 ══════════════════════════════════════════════════════ */
@@ -239,12 +279,7 @@ function rollRarity() {
 }
 function pickCard() {
   const rarity = rollRarity();
-  const card = pickFromPool(rarity) || pickFromPool('C');
-  if (!card) {
-    // Pools not loaded yet (artifact sandbox) — return a testable placeholder
-    const placeholderCid = "QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG";
-    return cidToCard(placeholderCid, rarity);
-  }
+  const card = pickFromPool(rarity) || pickFromPool('C') || { id:"QmPK1s3pNYLi9ERiq3BDxKa4XosgWwFRQUydHUtz4YgpqB", _cid:"QmPK1s3pNYLi9ERiq3BDxKa4XosgWwFRQUydHUtz4YgpqB", handle:"@unknown", name:"...", rarity, cat:"Artist" };
   return { ...card, _uid: `${card.id}_${Date.now()}_${Math.random().toString(36).slice(2,7)}`, pulledAt: Date.now() };
 }
 function drawPack(lucky = false) {
@@ -252,8 +287,7 @@ function drawPack(lucky = false) {
   if (lucky) {
     // Lucky Pack: guarantee at least 1 UR (or LR) and at least 1 R
     const makeCard = (rarity) => {
-      const card = pickFromPool(rarity) || pickFromPool('C');
-      if (!card) return pickCard();
+      const card = pickFromPool(rarity) || pickCard();
       return { ...card, _uid: `${card.id}_${Date.now()}_${Math.random().toString(36).slice(2,7)}`, pulledAt: Date.now() };
     };
     const hasUR = cards.some(c => c.rarity === "UR" || c.rarity === "LR");
@@ -672,16 +706,13 @@ function CardFace({ card, dispW, holoPos={x:0.5,y:0.5}, holoActive=false, allowT
       <div style={{position:"absolute",left:ART_L,top:ART_T,width:ART_W,height:ART_H_PCT,background:"#0d0d0d",zIndex:0}}/>
 
       {/* Art */}
-      <div style={{position:"absolute",left:ART_L,top:ART_T,width:ART_W,height:ART_H_PCT,overflow:"hidden",zIndex:1}}>
-        {(card._cid || (card.id && card.id.startsWith('Qm'))) && (
-          <img draggable="false"
-            src={IMG_PROXY(card._cid || card.id, 400)}
-            alt=""
-            loading="lazy"
-            onError={e=>{e.target.style.opacity="0";}}
-            style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"center 15%",display:"block",transition:"opacity .3s"}}
-          />
-        )}
+      <div style={{position:"absolute",left:ART_L,top:ART_T,width:ART_W,height:ART_H_PCT,overflow:"hidden",zIndex:1,background:"#111"}}>
+        <img draggable="false"
+          src={card._cid ? IMG_PROXY(card._cid, 400) : ASSET.cardPfp(card.handle)}
+          alt=""
+          onError={e=>{e.target.style.opacity="0";}}
+          style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"center 15%",display:"block"}}
+        />
       </div>
       {/* UR: semi-opaque copy above holo layers */}
       {card.rarity === "UR" && (
@@ -1667,6 +1698,10 @@ function TheCabalApp() {
   const [isBulk,setIsBulk]   = useState(false);
   const isBulkRef = useRef(false);
   useEffect(() => { isBulkRef.current = isBulk; }, [isBulk]);
+
+  // Load IPFS pools on mount
+  useEffect(() => { loadPools(); }, []);
+
   const [notif,setNotif]     = useState(null);
   const [regenS,setRegenS]   = useState(PACK_REGEN);
   const [importing,setImp]   = useState(false);
@@ -1675,7 +1710,6 @@ function TheCabalApp() {
   const [ownedIds,setOwnedIds]= useState(new Set()); // ids owned BEFORE current reveal
   const importRef = useRef(null);
   const [showGyroPrompt, setShowGyroPrompt] = useState(false);
-  const [poolsReady, setPoolsReady] = useState(false);
   const [autoClaimToken, setAutoClaimToken] = useState(() => {
     const m = window.location.pathname.match(/\/claim\/([A-Z0-9]{6,10})/i);
     return m ? m[1].toUpperCase() : null;
@@ -1751,7 +1785,7 @@ function TheCabalApp() {
 
   const checkAchi = useCallback((coll,total,prev,burnTotal) => {
     const a={...prev}, u=new Set(coll.map(c=>c.id));
-    const rar = id => ACCOUNTS_BY_ID._get(id)?.rarity;
+    const rar = id => ACCOUNTS_BY_ID[id]?.rarity;
     if(coll.length) a.firstPull=true;
     if(coll.some(c=>rar(c.id)==="R"))  a.firstRare=true;
     if(coll.some(c=>rar(c.id)==="UR"||rar(c.id)==="LR")) a.firstUR=true;
@@ -1759,7 +1793,11 @@ function TheCabalApp() {
     if(u.size>=10)  a.coll10=true;  if(u.size>=25)  a.coll25=true;
     if(u.size>=50)  a.coll50=true;  if(u.size>=100) a.coll100=true;
     if(total>=10)   a.packs10=true; if(total>=50)   a.packs50=true; if(total>=100) a.packs100=true;
-    // allLR/allC/allR/allUR/fullSet not applicable with IPFS infinite pool
+
+
+
+
+
     const bt = burnTotal ?? (prev._burnTotal||0);
     a._burnTotal = bt;
     if(bt>=50)  a.burn50=true;
@@ -1773,7 +1811,7 @@ function TheCabalApp() {
 
   /* open single pack */
   const handleOpenPack = useCallback(() => {
-    if (st.packs<1||phase!=="idle"||!poolsReady) return;
+    if (st.packs<1||phase!=="idle") return;
     setOwnedIds(new Set(st.collection.map(c=>c.id)));
     const lucky = nextIsLucky;
     luckyRef.current = lucky;
@@ -1796,7 +1834,7 @@ function TheCabalApp() {
 
   /* open x10 */
   const handleOpen10 = useCallback(() => {
-    if (st.packs<10||phase!=="idle"||!poolsReady) return;
+    if (st.packs<10||phase!=="idle") return;
     setOwnedIds(new Set(st.collection.map(c=>c.id)));
     setRC(draw10Packs());
     setRD(false);
@@ -1882,7 +1920,7 @@ function TheCabalApp() {
     // collection is compact [{id, _uid}] — reconstruct full card data from ACCOUNTS_BY_ID
     const m = {};
     st.collection.forEach(c => {
-      const acc = ACCOUNTS_BY_ID._get(c.id);
+      const acc = ACCOUNTS_BY_ID[c.id];
       if (!acc) return;
       if (!m[c.id]) {
         // First copy of this card — preserve acquisition date
@@ -2020,7 +2058,7 @@ function TheCabalApp() {
                 {/* "click / tap to open" hint */}
                 {st.packs>0 && (
                   <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"#444",letterSpacing:2,textAlign:"center"}}>
-                    {!poolsReady ? "loading cards..." : window.matchMedia?.("(pointer: coarse)").matches ? "tap to open" : "click to open"}
+                    {window.matchMedia?.("(pointer: coarse)").matches ? "tap to open" : "click to open"}
                   </div>
                 )}
 
@@ -2288,7 +2326,6 @@ function CollectionView({ unique, notify }) {
   const collectedIds = useMemo(() => new Set(unique.map(c=>c.id)), [unique]);
 
   const allSorted = useMemo(() => {
-    // With IPFS pools, ACCOUNTS is empty — sort what the player owns
     return [...unique].sort((a,b) => {
       const rd = RARITY_ORDER.indexOf(a.rarity) - RARITY_ORDER.indexOf(b.rarity);
       if (rd !== 0) return sortDir === "desc" ? rd : -rd;
@@ -2307,7 +2344,7 @@ function CollectionView({ unique, notify }) {
   const isFiltering = filter !== "ALL" || catFilter !== "ALL" || search.trim() !== "";
 
   const filteredCollected = useMemo(() => {
-    let arr = [...unique]; // IPFS mode: no full album, only show owned cards
+    let arr = [...unique];
     if (filter!=="ALL") arr=arr.filter(c=>c.rarity===filter);
     if (catFilter!=="ALL") arr=arr.filter(c=>(c.cat||"").split("/").map(s=>s.trim()).includes(catFilter));
     if (search) {
