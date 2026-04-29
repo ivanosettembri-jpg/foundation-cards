@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { initializeApp } from "firebase/app";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
+import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
 
 /* ══════════════════════════════════════════════════════
    IPFS GATEWAY ROTATION
@@ -1941,9 +1944,84 @@ function LoadingScreen({ progress, error, onFile }) {
   );
 }
 
+
+/* ══════════════════════════════════════════════════════
+   FIREBASE — Google Auth + Firestore cloud save
+   Replace FIREBASE_CONFIG with your own project config
+══════════════════════════════════════════════════════ */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyB5u27w0ziBf9pGw04cFf-xhDBCZ9H5kEY",
+  authDomain: "networkedcards.firebaseapp.com",
+  projectId: "networkedcards",
+  storageBucket: "networkedcards.firebasestorage.app",
+  messagingSenderId: "1000213692591",
+  appId: "1:1000213692591:web:b7220dd156dfffd388d45a"
+};
+
+let _fbApp = null, _fbAuth = null, _fbDb = null;
+function getFirebaseAuth() {
+  if (!FIREBASE_CONFIG) return null;
+  if (!_fbApp) {
+    _fbApp = initializeApp(FIREBASE_CONFIG);
+    _fbAuth = getAuth(_fbApp);
+    _fbDb   = getFirestore(_fbApp);
+  }
+  return _fbAuth;
+}
+
+async function cloudSave(uid, data) {
+  if (!_fbDb) return;
+  try {
+    const ref = doc(_fbDb, "saves", uid);
+    await setDoc(ref, { save: JSON.stringify(data), updatedAt: Date.now() });
+  } catch(e) { console.warn("Cloud save failed:", e); }
+}
+
+async function cloudLoad(uid) {
+  if (!_fbDb) return null;
+  try {
+    const ref = doc(_fbDb, "saves", uid);
+    const snap = await getDoc(ref);
+    if (snap.exists()) return JSON.parse(snap.data().save);
+  } catch(e) { console.warn("Cloud load failed:", e); }
+  return null;
+}
+
+function AuthButton({ user, onLogin, onLogout }) {
+  const mono = { fontFamily:"'DM Mono',monospace" };
+  if (!FIREBASE_CONFIG) return null; // hidden until Firebase is configured
+  if (user) return (
+    <div style={{display:"flex",alignItems:"center",gap:8}}>
+      {user.photoURL && <img src={user.photoURL} style={{width:22,height:22,borderRadius:"50%",opacity:.7}} alt=""/>}
+      <button onClick={onLogout} style={{...mono,background:"transparent",border:"1px solid #1e1e1e",
+        borderRadius:3,padding:"4px 8px",color:"#444",fontSize:7,letterSpacing:1,cursor:"pointer"}}
+        onMouseEnter={e=>e.currentTarget.style.color="#888"}
+        onMouseLeave={e=>e.currentTarget.style.color="#444"}>
+        sign out
+      </button>
+    </div>
+  );
+  return (
+    <button onClick={onLogin} style={{...mono,background:"transparent",border:"1px solid #1e1e1e",
+      borderRadius:3,padding:"4px 10px",color:"#444",fontSize:7,letterSpacing:1,cursor:"pointer",
+      display:"flex",alignItems:"center",gap:6}}
+      onMouseEnter={e=>e.currentTarget.style.color="#888"}
+      onMouseLeave={e=>e.currentTarget.style.color="#444"}>
+      <svg width="10" height="10" viewBox="0 0 18 18" fill="none">
+        <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+        <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853"/>
+        <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+        <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+      </svg>
+      sign in
+    </button>
+  );
+}
+
 function TheCabalApp() {
   const [st,setSt]           = useState(INIT);
   const [loaded,setLoaded]   = useState(false);
+  const [authUser,setAuthUser] = useState(null);
   const [loadProgress,setLP] = useState(0);
   const [loadErr,setLoadErr] = useState(null);
 
@@ -2074,6 +2152,47 @@ function TheCabalApp() {
     }, 1000);
     return () => clearInterval(id);
   }, [loaded, persist]);
+
+  const handleGoogleLogin = useCallback(async () => {
+    const auth = getFirebaseAuth();
+    if (!auth) return;
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+      setAuthUser(user);
+      // Load cloud save — merge with local (take whichever has more collection)
+      const cloud = await cloudLoad(user.uid);
+      if (cloud && cloud.collection?.length > st.collection.length) {
+        setSt(prev => { const merged = {...prev, ...cloud}; persist(merged); return merged; });
+        notify("☁ cloud save loaded");
+      } else if (st.collection.length > 0) {
+        await cloudSave(user.uid, st);
+        notify("☁ local save synced to cloud");
+      }
+    } catch(e) { if (e.code !== "auth/popup-closed-by-user") notify("login failed"); }
+  }, [st, persist, notify]);
+
+  const handleGoogleLogout = useCallback(async () => {
+    const auth = getFirebaseAuth();
+    if (auth) await signOut(auth);
+    setAuthUser(null);
+    notify("signed out");
+  }, []);
+
+  // Listen to auth state changes
+  useEffect(() => {
+    const auth = getFirebaseAuth();
+    if (!auth) return;
+    return onAuthStateChanged(auth, async user => {
+      setAuthUser(user || null);
+    });
+  }, []);
+
+  // Auto cloud-save on every state change when logged in
+  useEffect(() => {
+    if (authUser && loaded) cloudSave(authUser.uid, st);
+  }, [st, authUser, loaded]);
 
   const toggleFav = useCallback((cardId) => {
     setSt(prev => {
@@ -2289,25 +2408,11 @@ function TheCabalApp() {
 
       {/* Header */}
       <header style={{padding:"18px 20px 0",borderBottom:"1px solid #111",maxWidth:680,margin:"0 auto",width:"100%"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:14}}>
-          <div>
-
-            <Logo/>
-          </div>
-          <div style={{display:"flex",gap:6,alignItems:"center"}}>
-
-            {[["↑ EXPORT",handleExport,false],["↓ IMPORT",()=>importRef.current?.click(),importing]].map(([lbl,fn,dis])=>(
-              <button key={lbl} onClick={fn} disabled={dis}
-                style={{fontFamily:"'DM Mono',monospace",background:"transparent",border:"1px solid #222",
-                  borderRadius:4,padding:"5px 9px",color:"#666",fontSize:7.5,letterSpacing:1,
-                  cursor:dis?"wait":"pointer",transition:"all .15s"}}
-                onMouseEnter={e=>{if(!dis){e.target.style.borderColor="#444";e.target.style.color="#aaa";}}}
-                onMouseLeave={e=>{e.target.style.borderColor="#222";e.target.style.color="#666";}}>
-                {lbl}
-              </button>
-            ))}
-            <input ref={importRef} type="file" accept=".txt" style={{display:"none"}} onChange={handleImport}/>
-          </div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+          {/* Auth slot — left */}
+          <AuthButton user={authUser} onLogin={handleGoogleLogin} onLogout={handleGoogleLogout}/>
+          {/* Logo — right */}
+          <Logo/>
         </div>
         <nav style={{display:"flex",gap:0}}>
           {navItems.map(({k,l})=>(
