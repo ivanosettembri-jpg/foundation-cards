@@ -115,11 +115,22 @@ const CARDS_PER   = 5;
 const LUCKY_CHANCE = 0.05;  // 5% chance per pack
 
 // ── Compatibility shims (ACCOUNTS is now dynamic via IPFS pools) ──
+
+function cidToCard(cid, rarity) {
+  return {
+    id: cid,
+    handle: "@" + cid.slice(2, 10),
+    name: "#" + cid.slice(2, 8),
+    rarity,
+    cat: "Artist",
+    _cid: cid,
+  };
+}
+
 const ACCOUNTS = [];  // empty — pool-based, no static list
-const ACCOUNTS_BY_ID = new Proxy({}, {
-  get: (_, id) => id && id.startsWith('Qm') ? cidToCard(id, 'C') : undefined
-});
-const SERIAL_MAP = new Proxy({}, { get: () => undefined });
+// Simple function-based lookups instead of Proxy (safer with minifiers)
+const ACCOUNTS_BY_ID = { _get(id) { return id && id.startsWith('Qm') ? cidToCard(id, 'C') : undefined; } };
+const SERIAL_MAP = {};
 
 
 /* ══════════════════════════════════════════════════════
@@ -197,17 +208,6 @@ async function loadPools() {
 
 // Minimal ACCOUNTS shim — keeps rest of codebase working
 // Each "account" is just {id, rarity, handle, name, cat} derived from CID
-function cidToCard(cid, rarity) {
-  return {
-    id: cid,
-    handle: "@" + cid.slice(2, 10),
-    name: "#" + cid.slice(2, 8),
-    rarity,
-    cat: "Artist",
-    _cid: cid,
-  };
-}
-
 function pickFromPool(rarity) {
   const pool = POOLS[rarity];
   if (!pool.length) return null;
@@ -1742,7 +1742,7 @@ function TheCabalApp() {
 
   const checkAchi = useCallback((coll,total,prev,burnTotal) => {
     const a={...prev}, u=new Set(coll.map(c=>c.id));
-    const rar = id => ACCOUNTS_BY_ID[id]?.rarity;
+    const rar = id => ACCOUNTS_BY_ID._get(id)?.rarity;
     if(coll.length) a.firstPull=true;
     if(coll.some(c=>rar(c.id)==="R"))  a.firstRare=true;
     if(coll.some(c=>rar(c.id)==="UR"||rar(c.id)==="LR")) a.firstUR=true;
@@ -1873,7 +1873,7 @@ function TheCabalApp() {
     // collection is compact [{id, _uid}] — reconstruct full card data from ACCOUNTS_BY_ID
     const m = {};
     st.collection.forEach(c => {
-      const acc = ACCOUNTS_BY_ID[c.id];
+      const acc = ACCOUNTS_BY_ID._get(c.id);
       if (!acc) return;
       if (!m[c.id]) {
         // First copy of this card — preserve acquisition date
