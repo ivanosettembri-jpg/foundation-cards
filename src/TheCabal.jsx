@@ -5,42 +5,71 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
    Tries gateways in order on error. w3s.link and
    nftstorage.link are fastest for NFT content.
 ══════════════════════════════════════════════════════ */
-// Alchemy NFT API — called directly from browser (CORS enabled).
-// Has Foundation NFTs cached in CDN. Falls back to IPFS if not found.
+// Alchemy NFT API — thumbnailUrl works for both images AND videos (first frame).
+// Uses a React component with local state to avoid ref/re-render issues.
 const ALCHEMY_KEY = "l40Adj6lx9enV3reVqZMr";
 const _alchemyCache = {};
-const _TRIED = {};
 
-function ipfsUrl(cid) {
-  // placeholder while Alchemy fetch is in progress
-  return `https://w3s.link/ipfs/${cid}/nft.png`;
-}
-
-async function fetchAlchemyImage(card, imgEl) {
-  if (!card.collection || !card.token_id) return;
-  const key = card.id;
-  if (_alchemyCache[key]) { imgEl.src = _alchemyCache[key]; return; }
+async function getAlchemyThumb(collection, tokenId) {
+  const key = `${collection}_${tokenId}`;
+  if (_alchemyCache[key] !== undefined) return _alchemyCache[key];
+  _alchemyCache[key] = null; // mark as fetching
   try {
-    const url = `https://eth-mainnet.g.alchemy.com/nft/v3/${ALCHEMY_KEY}/getNFTMetadata` +
-      `?contractAddress=${card.collection}&tokenId=${card.token_id}&refreshCache=false`;
-    const r = await fetch(url);
-    if (!r.ok) return;
+    const r = await fetch(
+      `https://eth-mainnet.g.alchemy.com/nft/v3/${ALCHEMY_KEY}/getNFTMetadata` +
+      `?contractAddress=${collection}&tokenId=${tokenId}&refreshCache=false`
+    );
+    if (!r.ok) return null;
     const data = await r.json();
-    const src = data?.image?.cachedUrl || data?.image?.thumbnailUrl || data?.image?.originalUrl;
-    if (src) { _alchemyCache[key] = src; imgEl.src = src; }
-  } catch {}
+    // thumbnailUrl works for images AND videos (extracts first frame)
+    const url = data?.image?.thumbnailUrl || data?.image?.cachedUrl || data?.image?.originalUrl;
+    _alchemyCache[key] = url || null;
+    return _alchemyCache[key];
+  } catch { return null; }
 }
 
-function ipfsOnError(e, cid) {
-  const step = (_TRIED[cid] = (_TRIED[cid] || 0) + 1);
-  const urls = [
-    `https://w3s.link/ipfs/${cid}`,
-    `https://nftstorage.link/ipfs/${cid}/nft.png`,
-    `https://nftstorage.link/ipfs/${cid}`,
-  ];
-  if (step <= urls.length) e.target.src = urls[step - 1];
-  else e.target.style.display = "none";
+function CardImage({ card, style }) {
+  const [src, setSrc] = React.useState(
+    card.image_cid ? `https://w3s.link/ipfs/${card.image_cid}/nft.png` : null
+  );
+  const [errStep, setErrStep] = React.useState(0);
+
+  React.useEffect(() => {
+    if (!card.collection || !card.token_id) return;
+    let cancelled = false;
+    getAlchemyThumb(card.collection, card.token_id).then(url => {
+      if (!cancelled && url) setSrc(url);
+    });
+    return () => { cancelled = true; };
+  }, [card.id]);
+
+  const fallbacks = card.image_cid ? [
+    `https://w3s.link/ipfs/${card.image_cid}`,
+    `https://nftstorage.link/ipfs/${card.image_cid}/nft.png`,
+    `https://nftstorage.link/ipfs/${card.image_cid}`,
+  ] : [];
+
+  if (!src) return null;
+  return (
+    <img
+      loading="lazy"
+      src={src}
+      alt=""
+      onError={() => {
+        const next = fallbacks[errStep];
+        if (next) { setErrStep(s => s+1); setSrc(next); }
+        else setSrc(null);
+      }}
+      style={style}
+    />
+  );
 }
+
+// Keep for backward compat (download function etc)
+function ipfsUrl(cid) {
+  return cid ? `https://w3s.link/ipfs/${cid}/nft.png` : null;
+}
+function ipfsOnError(e, cid) {}
 
 
 /* ╔══════════════════════════════════════════════════════════════════════════╗
@@ -733,25 +762,12 @@ function CardFace({ card, dispW, holoPos={x:0.5,y:0.5}, holoActive=false, allowT
 
       {/* Art */}
       <div style={{position:"absolute",left:ART_L,top:ART_T,width:ART_W,height:ART_H_PCT,overflow:"hidden",zIndex:1}}>
-        <img
-          ref={el => { if (el && card.image_cid && card.collection) fetchAlchemyImage(card, el); }}
-          src={(card.image_cid ? ipfsUrl(card.image_cid) : null)}
-          alt=""
-          onError={e=>ipfsOnError(e, card.image_cid)}
-          loading="lazy" style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"center 15%",display:"block"}}
-        />
+        <CardImage card={card} style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"center 15%",display:"block"}} />
       </div>
       {/* UR: semi-opaque copy above holo layers */}
       {card.rarity === "UR" && (
         <div style={{position:"absolute",left:ART_L,top:ART_T,width:ART_W,height:ART_H_PCT,overflow:"hidden",zIndex:9,pointerEvents:"none"}}>
-          <img
-            loading="lazy"
-            ref={el => { if (el && card.image_cid && card.collection) fetchAlchemyImage(card, el); }}
-            src={(card.image_cid ? ipfsUrl(card.image_cid) : null)}
-            alt=""
-            onError={e=>ipfsOnError(e, card.image_cid)}
-            style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"center 15%",display:"block",opacity:0.72}}
-          />
+          <CardImage card={card} style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"center 15%",display:"block",opacity:0.72}} />
         </div>
       )}
       {/* Gradient overlay at bottom of art for readability */}
@@ -2888,12 +2904,9 @@ function ForgeView({ uniqueCards, st, save, notify }) {
                   }}>
                   {/* Photo */}
                   <div style={{ aspectRatio:"1/1", background:"#0d0d0d", overflow:"hidden" }}>
-                    <img loading="lazy" ref={el => { if (el && card.image_cid && card.collection) fetchAlchemyImage(card, el); }}
-                      src={(card.image_cid ? ipfsUrl(card.image_cid) : null)} alt=""
-                      onError={e=>ipfsOnError(e, card.image_cid)}
-                      style={{ width:"100%", height:"100%", objectFit:"cover",
+                    <CardImage card={card} style={{ width:"100%", height:"100%", objectFit:"cover",
                         filter: isSelected ? "none" : "grayscale(0.35) brightness(0.6)",
-                        transition:"filter .15s" }}/>
+                        transition:"filter .15s" }} />
                   </div>
                   {/* Info */}
                   <div style={{ padding:"4px 5px 5px", ...mono }}>
