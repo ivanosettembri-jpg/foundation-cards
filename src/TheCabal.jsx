@@ -2380,15 +2380,27 @@ function TheCabalApp() {
 
                 {!revealDone ? (
                   /* ── Swipe stack — Take All BELOW ── */
-                  <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:16}}>
-                    {/* Heart fav button — top right of stack, discrete */}
-
-                    <SwipeableCardStack
-                      cards={revealCards.map(c => rarityUpgrades[c.id] ? {...c, rarity: rarityUpgrades[c.id].rarity} : c)}
-                      onComplete={handleStackComplete}
-                      cardWidth={200}
-                      ownedIds={ownedIds}
-                    />
+                  <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:0}}>
+                    <div style={{position:"relative",display:"inline-block"}}>
+                      <SwipeableCardStack
+                        cards={revealCards.map(c => rarityUpgrades[c.id] ? {...c, rarity: rarityUpgrades[c.id].rarity} : c)}
+                        onComplete={handleStackComplete}
+                        cardWidth={200}
+                        ownedIds={ownedIds}
+                      />
+                      {/* Heart — overlaid bottom-right of card */}
+                      <button
+                        onClick={e=>{e.stopPropagation();toggleFav(revealCards[0]?.id);}}
+                        style={{
+                          position:"absolute", bottom:36, right:8, zIndex:50,
+                          background:"rgba(0,0,0,0.55)", border:"none", cursor:"pointer",
+                          fontSize:18, lineHeight:1, padding:"5px 7px", borderRadius:"50%",
+                          color:(st.favorites||[]).includes(revealCards[0]?.id)?"#e74c3c":"rgba(255,255,255,0.25)",
+                          transition:"color .15s",
+                        }}
+                      >♥</button>
+                    </div>
+                    <div style={{height:16}}/>
                     <button onClick={()=>setRD(true)} style={{
                       fontFamily:"'DM Mono',monospace",background:"transparent",
                       border:"1px solid #1a1a1a",borderRadius:5,padding:"6px 20px",
@@ -2534,7 +2546,7 @@ function CardModal({ card, onClose, isFav, onToggleFav }) {
         )}
       </div>
 
-      {/* Hint row — below the card, outside stopPropagation */}
+      {/* Hint row — below the card */}
       <div
         onClick={e=>e.stopPropagation()}
         style={{
@@ -2544,19 +2556,19 @@ function CardModal({ card, onClose, isFav, onToggleFav }) {
         }}
       >
         <span style={{color:"#555"}}>click to flip</span>
-        <span style={{color:"#2a2a2a"}}>·</span>
-        {card.handle ? (
-          <a
-            href={twitterUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{color:"#555", textDecoration:"none", transition:"color .15s"}}
-            onMouseEnter={e=>e.target.style.color="#aaa"}
-            onMouseLeave={e=>e.target.style.color="#555"}
-          >follow on X ↗</a>
-        ) : (
-          <span style={{color:"#333", fontFamily:"'DM Mono',monospace", fontSize:10}}>identity unknown</span>
-        )}
+        {onToggleFav && <>
+          <span style={{color:"#2a2a2a"}}>·</span>
+          <button
+            onClick={()=>onToggleFav(card.id)}
+            style={{
+              background:"transparent", border:"none", cursor:"pointer",
+              fontFamily:"'DM Mono',monospace", fontSize:10, letterSpacing:1,
+              color:isFav?"#e74c3c":"#555", transition:"color .15s", padding:0,
+            }}
+            onMouseEnter={e=>e.currentTarget.style.color=isFav?"#ff6b6b":"#aaa"}
+            onMouseLeave={e=>e.currentTarget.style.color=isFav?"#e74c3c":"#555"}
+          >{isFav ? "♥ saved" : "♥ save"}</button>
+        </>}
       </div>
     </div>
   );
