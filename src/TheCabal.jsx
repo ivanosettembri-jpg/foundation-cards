@@ -969,7 +969,7 @@ function FlippableCard({ card, dispW=120, noFlipOnClick=false, allowTilt=false }
   const r = RARITIES[card.rarity];
   const dispH = Math.round(dispW*(470/300));
   const isLR = card.rarity === "LR";
-  const twitterUrl = card.creator ? `https://etherscan.io/address/${card.creator}` : null;
+  const twitterUrl = `https://etherscan.io/address/${card.creator || card.collection}`;
   const serial = SERIAL_MAP[card.id];
 
   // Track pointer for ALL cards — holo intensity set in CardFace by rarity
@@ -2130,12 +2130,24 @@ function TheCabalApp() {
   }, [st.packs,st.pullCount,st.collection,phase,save,nextIsLucky]);
 
   const handleAnimEnd = useCallback(p => {
-    if (p==="shaking") { setPhase("burst"); return; }
+    if (p==="shaking") {
+      // Draw cards NOW (during shake animation) so we can prefetch images immediately
+      if (!isBulkRef.current) {
+        const earlyDraw = drawPack(luckyRef.current);
+        setRC(earlyDraw);
+        // Start Alchemy prefetch during the shake animation (~550ms)
+        earlyDraw
+          .filter(c => c.collection && c.token_id)
+          .forEach(c => getAlchemyThumb(c.collection, c.token_id).catch(()=>{}));
+      }
+      setPhase("burst");
+      return;
+    }
     if (p==="burst") {
-      const drawnCards = !isBulkRef.current ? drawPack(luckyRef.current) : null;
-      if (drawnCards) setRC(drawnCards);
+      // Cards already drawn during shaking phase for x1; x10 drawn earlier
+      const drawnCards = null; // already set in shaking handler
       setRD(false);
-      const toLoad = drawnCards || revealCards;
+      const toLoad = revealCards; // cards set in shaking phase
       // Show creative loading message
       const msgs = ["i have a good feeling about this", "are you feeling lucky, ser?", "will it be ai slop?", "hold on ser", "bribing the validators...", "consulting the oracle...", "summoning from the chain...", "asking gm to the network...", "shuffling 343k tokens...", "the blockchain never lies"];
       setLoadMsg(msgs[Math.floor(Math.random()*msgs.length)]);
@@ -2143,12 +2155,11 @@ function TheCabalApp() {
       const prefetches = toLoad
         .filter(c => c.collection && c.token_id)
         .map(c => getAlchemyThumb(c.collection, c.token_id).catch(()=>null));
-      // Reveal as soon as first card image is ready (or 5s timeout)
-      const firstReady = prefetches[0] || Promise.resolve(null);
-      Promise.race([firstReady, new Promise(res => setTimeout(res, 5000))])
-        .then(() => { setLoadMsg(""); setPhase("revealing"); });
-      // Rest continue loading in background
-      Promise.all(prefetches).catch(()=>{});
+      // Wait for ALL card images (max 6s) so reveal shows cards with images
+      Promise.race([
+        Promise.all(prefetches),
+        new Promise(res => setTimeout(res, 6000)),
+      ]).then(() => { setLoadMsg(""); setPhase("revealing"); });
     }
   }, []);
 
@@ -2520,7 +2531,7 @@ function CardModal({ card, onClose, isFav, onToggleFav }) {
     };
   }, [onClose]);
 
-  const twitterUrl = card.creator ? `https://etherscan.io/address/${card.creator}` : null;
+  const twitterUrl = `https://etherscan.io/address/${card.creator || card.collection}`;
 
   return (
     <div
