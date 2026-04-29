@@ -1,5 +1,35 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 
+/* ══════════════════════════════════════════════════════
+   IPFS GATEWAY ROTATION
+   Tries gateways in order on error. w3s.link and
+   nftstorage.link are fastest for NFT content.
+══════════════════════════════════════════════════════ */
+// Images served via our Vercel proxy (/api/ipfs/{cid}).
+// Server-side: fetches IPFS, tries /nft.png and direct, resizes to 400px WebP.
+// Cached immutably on Vercel CDN after first fetch.
+function ipfsUrl(cid) {
+  return `/api/ipfs/${cid}`;
+}
+
+function ipfsOnError(e, cid) {
+  // Proxy failed — fall back to direct full-res gateways
+  const tried = e.target.dataset.tried || "";
+  const fallbacks = [
+    `https://w3s.link/ipfs/${cid}/nft.png`,
+    `https://w3s.link/ipfs/${cid}`,
+    `https://nftstorage.link/ipfs/${cid}/nft.png`,
+  ];
+  const next = fallbacks.find(u => !tried.includes(u));
+  if (next) {
+    e.target.dataset.tried = tried + next;
+    e.target.src = next;
+  } else {
+    e.target.style.display = "none";
+  }
+}
+
+
 /* ╔══════════════════════════════════════════════════════════════════════════╗
    ║                    THE CABAL  —  EDITOR'S GUIDE                         ║
    ╠══════════════════════════════════════════════════════════════════════════╣
@@ -131,21 +161,19 @@ const RARITY_ORDER = ["LR","UR","R","C"];
 ══════════════════════════════════════════════════════ */
 const PFP_DATA = {};
 
-
 const ASSET = {
   packStandard: null,
   packPity:     null,
   card:    () => null,
-  cardPfp: (handle) => {
-    const h = handle.replace(/^@/,"").toLowerCase();
-    return PFP_DATA[h] || null;
+  cardPfp: (card) => {
+    return card && card.image_cid ? ipfsUrl(card.image_cid) : null;
   },
 };
 
 /* ══════════════════════════════════════════════════════
    GENERATED AVATAR  — canvas-drawn, always visible.
    Used as the art area background; real pfp overlays it
-   via <img draggable="false"> when available. Deterministic + looks great.
+   via <img> when available. Deterministic + looks great.
 ══════════════════════════════════════════════════════ */
 function drawGeneratedAvatar(canvas, card) {
   // Draw into a small canvas (will be stretched to art area by CSS)
@@ -227,45 +255,28 @@ const Storage = {
    Card art loads live from each account's Twitter pfp
    via unavatar.io — no images to download.
 ══════════════════════════════════════════════════════ */
-const ACCOUNTS = [];
+let ACCOUNTS = [];
 
 
-const SERIAL_MAP = {};
+// SERIAL_MAP computed lazily after ACCOUNTS loads
+let _serialCache = null;
+function getSerialMap() {
+  if (_serialCache) return _serialCache;
+  if (!ACCOUNTS.length) return {};
+  const ordered = [...ACCOUNTS].sort((a, b) => {
+    const rd = RARITY_ORDER.indexOf(a.rarity) - RARITY_ORDER.indexOf(b.rarity);
+    if (rd !== 0) return rd;
+    return a.name.localeCompare(b.name);
+  });
+  _serialCache = {};
+  ordered.forEach((acc, i) => { _serialCache[acc.id] = i + 1; });
+  return _serialCache;
+}
+// Keep SERIAL_MAP as a proxy for backward compat
+const SERIAL_MAP = new Proxy({}, { get: (_, k) => getSerialMap()[k] });
 
 // O(1) lookup by id — used to reconstruct card data from compact save format
-/* ══════════════════════════════════════════════════════
-   IPFS CARD POOLS
-══════════════════════════════════════════════════════ */
-const IMG_PROXY = (cid, w=400) =>
-  `https://wsrv.nl/?url=${encodeURIComponent("https://cloudflare-ipfs.com/ipfs/"+cid)}&w=${w}&output=webp&q=80`;
-
-const POOLS = { LR:[], UR:[], R:[], C:[] };
-let _poolsLoaded = false;
-let _poolPromise = null;
-
-function loadPools() {
-  if (_poolsLoaded) return Promise.resolve();
-  if (_poolPromise) return _poolPromise;
-  _poolPromise = Promise.all(["LR","UR","R"].map(r =>
-    fetch(`/pools/pool_${r}.json`).then(res => res.json()).then(data => { POOLS[r] = data; }).catch(()=>{})
-  )).then(() => {
-    _poolsLoaded = true;
-    for (let i = 0; i < 10; i++) {
-      fetch(`/pools/pool_C_${i}.json`).then(r=>r.json()).then(chunk=>{ POOLS.C = POOLS.C.concat(chunk); }).catch(()=>{});
-    }
-  });
-  return _poolPromise;
-}
-
-function pickFromPool(rarity) {
-  const pool = POOLS[rarity];
-  if (!pool || !pool.length) return null;
-  const cid = pool[Math.floor(Math.random() * pool.length)];
-  return { id: cid, _cid: cid, handle: "@"+cid.slice(2,10), name: "#"+cid.slice(2,8), rarity, cat: "Artist" };
-}
-
-
-const ACCOUNTS_BY_ID = new Proxy({}, { get(_, id) { return id && id.startsWith("Qm") ? { id, _cid:id, handle:"@"+id.slice(2,10), name:"#"+id.slice(2,8), rarity:"C", cat:"Artist" } : undefined; } });
+let ACCOUNTS_BY_ID = {};
 
 /* ══════════════════════════════════════════════════════
    GACHA ENGINE
@@ -279,16 +290,18 @@ function rollRarity() {
 }
 function pickCard() {
   const rarity = rollRarity();
-  const card = pickFromPool(rarity) || pickFromPool('C') || { id:"QmPK1s3pNYLi9ERiq3BDxKa4XosgWwFRQUydHUtz4YgpqB", _cid:"QmPK1s3pNYLi9ERiq3BDxKa4XosgWwFRQUydHUtz4YgpqB", handle:"@unknown", name:"...", rarity, cat:"Artist" };
-  return { ...card, _uid: `${card.id}_${Date.now()}_${Math.random().toString(36).slice(2,7)}`, pulledAt: Date.now() };
+  const pool = ACCOUNTS.filter(a => a.rarity === rarity);
+  const base = pool[Math.floor(Math.random() * pool.length)];
+  return { ...base, _uid: `${base.id}_${Date.now()}_${Math.random().toString(36).slice(2,7)}` };
 }
 function drawPack(lucky = false) {
   const cards = Array.from({ length: CARDS_PER }, () => pickCard());
   if (lucky) {
     // Lucky Pack: guarantee at least 1 UR (or LR) and at least 1 R
     const makeCard = (rarity) => {
-      const card = pickFromPool(rarity) || pickCard();
-      return { ...card, _uid: `${card.id}_${Date.now()}_${Math.random().toString(36).slice(2,7)}`, pulledAt: Date.now() };
+      const pool = ACCOUNTS.filter(a => a.rarity === rarity);
+      const base = pool[Math.floor(Math.random() * pool.length)];
+      return { ...base, _uid: `${base.id}_${Date.now()}_${Math.random().toString(36).slice(2,7)}` };
     };
     const hasUR = cards.some(c => c.rarity === "UR" || c.rarity === "LR");
     const hasR  = cards.some(c => c.rarity === "R");
@@ -380,7 +393,7 @@ function wrapText(ctx, text, x, y, maxW, lh) {
   ctx.fillText(line,x,ly); return ly+lh;
 }
 
-// uiMode=true  → art area left transparent so the <img draggable="false"> pfp tag behind shows through
+// uiMode=true  → art area left transparent so the <img> pfp tag behind shows through
 // uiMode=false → art area filled (used for PNG download, img contains the pfp)
 function drawCardTemplate(canvas, card, img=null, uiMode=false) {
   const SC=2, W=300, H=470;
@@ -394,7 +407,7 @@ function drawCardTemplate(canvas, card, img=null, uiMode=false) {
     // Draw card background but leave the art area transparent.
     // We do this by drawing the full rounded rect then clearing the art slot.
     ctx.fillStyle="#080808"; rrect(ctx,0,0,W,H,10); ctx.fill();
-    ctx.clearRect(AX, AY, AW, AH); // punch hole → pfp <img draggable="false"> shows through
+    ctx.clearRect(AX, AY, AW, AH); // punch hole → pfp <img> shows through
   } else {
     ctx.fillStyle="#080808"; rrect(ctx,0,0,W,H,10); ctx.fill();
   }
@@ -479,12 +492,12 @@ function downloadCardPNG(card) {
   };
   loadImg(ASSET.card(card.id))
     .then(dl)
-    .catch(() => loadImg(ASSET.cardPfp(card.handle)).then(dl).catch(() => dl(null)));
+    .catch(() => loadImg((card.image_cid ? ipfsUrl(card.image_cid) : null)).then(dl).catch(() => dl(null)));
 }
 
 /* ══════════════════════════════════════════════════════
    CARD CANVAS COMPONENT
-   Canvas draws the frame/text; a plain <img draggable="false"> overlays
+   Canvas draws the frame/text; a plain <img> overlays
    the art area — no CORS/canvas-taint issues with pfps.
    Art area in 300×470 logical px: left=8 top=38 w=284 h=185
 ══════════════════════════════════════════════════════ */
@@ -497,7 +510,7 @@ function NewBadge({ size = "md" }) {
       position:"absolute",
       bottom: s ? 28 : 32,
       right: s ? 4 : 6,
-      zIndex: 22,
+      zIndex: 10,
       background:"#f472b6",
       color:"#000",
       fontFamily:"'DM Mono',monospace",
@@ -677,7 +690,7 @@ function CardFace({ card, dispW, holoPos={x:0.5,y:0.5}, holoActive=false, allowT
           position:"absolute", top:fs(.035), left:fs(.035), zIndex:20,
           pointerEvents:"none",
         }}>
-          <img draggable="false"
+          <img
             src={`data:image/svg+xml;base64,${LOGO_FULL_B64}`}
             alt="THE CABAL"
             style={{
@@ -706,21 +719,22 @@ function CardFace({ card, dispW, holoPos={x:0.5,y:0.5}, holoActive=false, allowT
       <div style={{position:"absolute",left:ART_L,top:ART_T,width:ART_W,height:ART_H_PCT,background:"#0d0d0d",zIndex:0}}/>
 
       {/* Art */}
-      <div style={{position:"absolute",left:ART_L,top:ART_T,width:ART_W,height:ART_H_PCT,overflow:"hidden",zIndex:1,background:"#111"}}>
-        <img draggable="false"
-          src={card._cid ? IMG_PROXY(card._cid, 400) : ASSET.cardPfp(card.handle)}
+      <div style={{position:"absolute",left:ART_L,top:ART_T,width:ART_W,height:ART_H_PCT,overflow:"hidden",zIndex:1}}>
+        <img
+          src={(card.image_cid ? ipfsUrl(card.image_cid) : null)}
           alt=""
-          onError={e=>{e.target.style.opacity="0";}}
-          style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"center 15%",display:"block"}}
+          onError={e=>ipfsOnError(e, card.image_cid)}
+          loading="lazy" style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"center 15%",display:"block"}}
         />
       </div>
       {/* UR: semi-opaque copy above holo layers */}
       {card.rarity === "UR" && (
         <div style={{position:"absolute",left:ART_L,top:ART_T,width:ART_W,height:ART_H_PCT,overflow:"hidden",zIndex:9,pointerEvents:"none"}}>
-          <img draggable="false"
-            src={ASSET.cardPfp(card.handle)}
+          <img
+            loading="lazy"
+            src={(card.image_cid ? ipfsUrl(card.image_cid) : null)}
             alt=""
-            onError={e=>{e.target.style.display="none";}}
+            onError={e=>ipfsOnError(e, card.image_cid)}
             style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"center 15%",display:"block",opacity:0.72}}
           />
         </div>
@@ -807,7 +821,7 @@ function FlippableCard({ card, dispW=120, noFlipOnClick=false, allowTilt=false }
   const r = RARITIES[card.rarity];
   const dispH = Math.round(dispW*(470/300));
   const isLR = card.rarity === "LR";
-  const twitterUrl = card.handle ? `https://x.com/${card.handle.replace("@","")}` : null;
+  const twitterUrl = card.creator ? `https://etherscan.io/address/${card.creator}` : null;
   const serial = SERIAL_MAP[card.id];
 
   // Track pointer for ALL cards — holo intensity set in CardFace by rarity
@@ -907,7 +921,7 @@ function FlippableCard({ card, dispW=120, noFlipOnClick=false, allowTilt=false }
         }}>
           {/* Logo with AnimatedEye overlaid on its eye — same as pack */}
           <div style={{position:"relative", display:"inline-flex", alignItems:"center", justifyContent:"center"}}>
-            <img draggable="false"
+            <img
               src={`data:image/svg+xml;base64,${LOGO_B64}`}
               alt="THE CABAL"
               style={{width: Math.round(dispW * 0.72), height:"auto", opacity:0.85, filter:"brightness(0) invert(1)"}}
@@ -922,7 +936,7 @@ function FlippableCard({ card, dispW=120, noFlipOnClick=false, allowTilt=false }
                 size={Math.round(dispW * 0.72 * 0.27)}
                 opacity={0.85}
                 special={card.rarity === "LR"}
-                bgColor={r.color+"cc"}
+                bgColor={r.color}
               />
             </div>
           </div>
@@ -1280,7 +1294,7 @@ function AnimatedEye({ opacity=0.55, size=52, special=false, bgColor=null }) {
 
   return (
     <svg width={size} height={Math.round(size*VH/VW)} viewBox={`0 0 ${VW} ${VH}`}
-      xmlns="http://www.w3.org/2000/svg" style={{ display:"block", overflow:"hidden", opacity }}>
+      xmlns="http://www.w3.org/2000/svg" style={{ display:"block", overflow:"visible", opacity }}>
 
       {isCutout && (
         <defs>
@@ -1408,7 +1422,7 @@ function PackVisual({ special, phase, onAnimEnd, colorIdx=0 }) {
             borderRadius: 10,
             boxShadow: special
               ? `0 0 0 1.5px ${ac}70, 0 14px 40px rgba(180,83,9,0.4), 0 3px 8px rgba(0,0,0,0.8)`
-              : `0 0 0 1.5px #ffffff44, 0 4px 12px rgba(0,0,0,0.4)`,
+              : `0 0 0 1.5px #ffffff44, 0 14px 40px rgba(0,0,0,0.55), 0 3px 8px rgba(0,0,0,0.6)`,
           }}
         >
           {/* ── BASE LAYER: background colour or lucky image ── */}
@@ -1418,7 +1432,7 @@ function PackVisual({ special, phase, onAnimEnd, colorIdx=0 }) {
           }}>
             {/* Lucky pack: custom illustration fills the whole face */}
             {special && LUCKY_PACK_BG_B64 && (
-              <img draggable="false"
+              <img
                 src={LUCKY_PACK_BG_B64}
                 alt=""
                 style={{
@@ -1472,7 +1486,7 @@ function PackVisual({ special, phase, onAnimEnd, colorIdx=0 }) {
                   position:"absolute", top:"18%", left:0, right:0,
                   display:"flex", justifyContent:"center",
                 }}>
-                  <img draggable="false"
+                  <img
                     src={`data:image/svg+xml;base64,${LOGO_B64}`}
                     alt="THE CABAL"
                     style={{
@@ -1600,7 +1614,7 @@ function PackVisual({ special, phase, onAnimEnd, colorIdx=0 }) {
 
 function Logo() {
   return (
-    <img draggable="false"
+    <img
       src={`data:image/svg+xml;base64,${LOGO_FULL_B64}`}
       alt="THE CABAL"
       style={{ height:28, width:"auto", display:"block", objectFit:"contain" }}
@@ -1686,9 +1700,187 @@ const INIT = {
 /* ══════════════════════════════════════════════════════
    MAIN APP
 ══════════════════════════════════════════════════════ */
+
+/* ══════════════════════════════════════════════════════
+   FOUNDATION CSV LOADER
+   Fetches all 343k token CIDs from Google Sheets at
+   startup. Assigns rarity by creator token count:
+   LR ≥100 | UR ≥30 | R ≥8 | C <8
+══════════════════════════════════════════════════════ */
+const FOUNDATION_CSV_URL =
+  "https://raw.githubusercontent.com/networked-art/foundation-ipfs-cids/master/token_cids.csv";
+
+function parseFoundationCSV(text) {
+  // Columns: collection(0), creator(1), token_id(2), metadata_cid(3), image_cid(4), animation_cid(5)
+  const lines = text.split("\n");
+  const out = [];
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    const p = line.split(",");
+    if (p.length < 5 || !p[4] || p[4].length < 10) continue;
+    out.push({ collection:p[0], creator:p[1], token_id:p[2], image_cid:p[4] });
+  }
+  return out;
+}
+
+async function loadFoundationPool(onProgress) {
+  const resp = await fetch(FOUNDATION_CSV_URL);
+  if (!resp.ok) throw new Error("CSV fetch failed: " + resp.status);
+
+  // Stream with progress
+  const total = parseInt(resp.headers.get("Content-Length") || "0");
+  const reader = resp.body.getReader();
+  let received = 0;
+  const chunks = [];
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.length;
+    if (total) onProgress(0.1 + 0.6 * (received / total));
+  }
+  onProgress(0.7);
+
+  // Decode
+  const merged = new Uint8Array(received);
+  let offset = 0;
+  for (const c of chunks) { merged.set(c, offset); offset += c.length; }
+  const text = new TextDecoder().decode(merged);
+  onProgress(0.75);
+
+  const rows = parseFoundationCSV(text);
+  onProgress(0.85);
+
+  // Creator frequency → rarity
+  const freq = {};
+  rows.forEach(r => { if (r.creator) freq[r.creator] = (freq[r.creator] || 0) + 1; });
+  onProgress(0.92);
+
+  const cards = rows.map((r, idx) => {
+    const n = freq[r.creator] || 1;
+    return {
+      id:       r.collection.slice(-8) + "_" + r.token_id,
+      handle:   r.creator.slice(0,6) + "..." + r.creator.slice(-4),
+      name:     "FND #" + String(idx+1).padStart(6,"0"),
+      rarity:   n >= 100 ? "LR" : n >= 30 ? "UR" : n >= 8 ? "R" : "C",
+      cat:      "Foundation",
+      bio:      "Foundation artist. " + n + " work" + (n>1?"s":"") + " on-chain.",
+      image_cid: r.image_cid,
+      creator:  r.creator,
+      collection: r.collection,
+    };
+  });
+
+  // Deduplicate ids
+  const seen = new Set();
+  const deduped = cards.filter(c => {
+    if (seen.has(c.id)) return false;
+    seen.add(c.id);
+    return true;
+  });
+
+  onProgress(1.0);
+  return deduped;
+}
+
+
+/* ══════════════════════════════════════════════════════
+   LOADING SCREEN — shows progress or file-input fallback
+══════════════════════════════════════════════════════ */
+function LoadingScreen({ progress, error, onFile }) {
+  const mono = { fontFamily:"'DM Mono',monospace" };
+  const inputRef = React.useRef(null);
+
+  if (error === "network") return (
+    <div style={{height:"100vh",display:"flex",flexDirection:"column",alignItems:"center",
+      justifyContent:"center",background:"#080808",padding:32, gap:20}}>
+      <div style={{...mono,fontSize:9,color:"#555",letterSpacing:3}}>THE CABAL</div>
+      <div style={{...mono,fontSize:7,color:"#444",letterSpacing:1,textAlign:"center",maxWidth:260,lineHeight:1.8}}>
+        Could not fetch cards automatically.<br/>
+        Upload the Foundation CSV to continue.
+      </div>
+      <div
+        onClick={() => inputRef.current?.click()}
+        style={{...mono,fontSize:7,letterSpacing:2,color:"#333",border:"1px solid #1e1e1e",
+          padding:"10px 20px",cursor:"pointer",marginTop:4,
+          transition:"border-color .2s,color .2s"}}
+        onMouseEnter={e=>{e.currentTarget.style.borderColor="#333";e.currentTarget.style.color="#888";}}
+        onMouseLeave={e=>{e.currentTarget.style.borderColor="#1e1e1e";e.currentTarget.style.color="#333";}}
+      >
+        SELECT CSV FILE
+      </div>
+      <div style={{...mono,fontSize:6,color:"#222",letterSpacing:1}}>
+        Foundation_IPFS_CIDs_-_token_cids.csv
+      </div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".csv"
+        style={{display:"none"}}
+        onChange={e => { const f = e.target.files?.[0]; if (f) onFile(f); }}
+      />
+    </div>
+  );
+
+  return (
+    <div style={{height:"100vh",display:"flex",flexDirection:"column",alignItems:"center",
+      justifyContent:"center",background:"#080808",padding:24,gap:12}}>
+      <div style={{...mono,fontSize:9,color:"#555",letterSpacing:3}}>THE CABAL</div>
+      <div style={{...mono,fontSize:7,color:"#333",letterSpacing:2}}>
+        LOADING FOUNDATION {progress < 70 ? "↓" : progress < 90 ? "◌" : "◉"} {progress}%
+      </div>
+      <div style={{width:200,height:1,background:"#1a1a1a",borderRadius:1,overflow:"hidden"}}>
+        <div style={{width:progress+"%",height:"100%",background:"#2a2a2a",transition:"width .4s ease"}}/>
+      </div>
+      <div style={{...mono,fontSize:6,color:"#222",letterSpacing:1}}>
+        {progress < 70 ? "downloading 343k tokens..." : progress < 90 ? "parsing cards..." : "building pool..."}
+      </div>
+    </div>
+  );
+}
+
 function TheCabalApp() {
   const [st,setSt]           = useState(INIT);
   const [loaded,setLoaded]   = useState(false);
+  const [loadProgress,setLP] = useState(0);
+  const [loadErr,setLoadErr] = useState(null);
+
+  const handleCSVFile = React.useCallback(async (file) => {
+    setLoadErr(null);
+    setLP(5);
+    try {
+      const text = await file.text();
+      setLP(70);
+      const rows = parseFoundationCSV(text);
+      setLP(85);
+      const freq = {};
+      rows.forEach(r => { if (r.creator) freq[r.creator] = (freq[r.creator]||0)+1; });
+      const cards = rows.map((r, idx) => {
+        const n = freq[r.creator]||1;
+        return {
+          id:       r.collection.slice(-8)+"_"+r.token_id,
+          handle:   r.creator.slice(0,6)+"..."+r.creator.slice(-4),
+          name:     "FND #"+String(idx+1).padStart(6,"0"),
+          rarity:   n>=100?"LR":n>=30?"UR":n>=8?"R":"C",
+          cat:      "Foundation",
+          bio:      "Foundation artist. "+n+" work"+(n>1?"s":"")+" on-chain.",
+          image_cid: r.image_cid,
+          creator:  r.creator,
+          collection: r.collection,
+        };
+      });
+      const seen = new Set();
+      ACCOUNTS = cards.filter(c=>{ if(seen.has(c.id))return false; seen.add(c.id); return true; });
+      ACCOUNTS_BY_ID = Object.fromEntries(ACCOUNTS.map(a=>[a.id,a]));
+      setLP(100);
+      setLoaded(true);
+    } catch(err) {
+      console.error("CSV file error:", err);
+      setLoadErr("network");
+    }
+  }, []);
+
   const [tab,setTab]         = useState("gacha");
   // phase: "idle" | "shaking" | "burst" | "revealing" | "bulk"
   const [phase,setPhase]     = useState("idle");
@@ -1698,10 +1890,6 @@ function TheCabalApp() {
   const [isBulk,setIsBulk]   = useState(false);
   const isBulkRef = useRef(false);
   useEffect(() => { isBulkRef.current = isBulk; }, [isBulk]);
-
-  // Load IPFS pools on mount
-  useEffect(() => { loadPools(); }, []);
-
   const [notif,setNotif]     = useState(null);
   const [regenS,setRegenS]   = useState(PACK_REGEN);
   const [importing,setImp]   = useState(false);
@@ -1710,10 +1898,6 @@ function TheCabalApp() {
   const [ownedIds,setOwnedIds]= useState(new Set()); // ids owned BEFORE current reveal
   const importRef = useRef(null);
   const [showGyroPrompt, setShowGyroPrompt] = useState(false);
-  const [autoClaimToken, setAutoClaimToken] = useState(() => {
-    const m = window.location.pathname.match(/\/claim\/([A-Z0-9]{6,10})/i);
-    return m ? m[1].toUpperCase() : null;
-  });
 
   /* storage */
   const persist = useCallback((data) => { Storage.set(SAVE_KEY, JSON.stringify(data)); }, []);
@@ -1740,6 +1924,17 @@ function TheCabalApp() {
           setSt(p => ({ ...p, ...s }));
         }
       } catch {}
+      // Load Foundation card pool from Google Sheets
+      setLP(5);
+      try {
+        const cards = await loadFoundationPool(p => setLP(Math.round(p * 100)));
+        ACCOUNTS = cards;
+        ACCOUNTS_BY_ID = Object.fromEntries(cards.map(a => [a.id, a]));
+      } catch (err) {
+        console.error("Foundation load error:", err);
+        setLoadErr("network");
+        return;
+      }
       setLoaded(true);
       // iOS gyro: request permission each session (required by iOS)
       if (needsGyroPermission()) {
@@ -1750,12 +1945,8 @@ function TheCabalApp() {
         } else if (stored === "granted") {
           // Previously granted: silently re-request each session (iOS requires this)
           DeviceOrientationEvent.requestPermission()
-            .then(r => {
-              try { localStorage.setItem(GYRO_PERM_KEY, r); } catch {}
-              if (r === "granted") {
-                try { window.dispatchEvent(new DeviceOrientationEvent("deviceorientation",{alpha:0,beta:0,gamma:0})); } catch {}
-              }
-            }).catch(() => {});
+            .then(r => { if (r !== "granted") try { localStorage.setItem(GYRO_PERM_KEY, r); } catch {} })
+            .catch(() => {});
         }
       }
     })();
@@ -1766,7 +1957,7 @@ function TheCabalApp() {
     if (!loaded) return;
     const id = setInterval(() => {
       setSt(prev => {
-        if (prev.packs >= MAX_PACKS) { setRegenS(PACK_REGEN); const capped = {...prev, lastRegen:Date.now()}; persist(capped); return capped; }
+        if (prev.packs >= MAX_PACKS) { setRegenS(PACK_REGEN); return prev; }
         const elapsed = Math.floor((Date.now()-prev.lastRegen)/1000);
         setRegenS(PACK_REGEN - (elapsed % PACK_REGEN));
         if (elapsed >= PACK_REGEN) {
@@ -1793,11 +1984,11 @@ function TheCabalApp() {
     if(u.size>=10)  a.coll10=true;  if(u.size>=25)  a.coll25=true;
     if(u.size>=50)  a.coll50=true;  if(u.size>=100) a.coll100=true;
     if(total>=10)   a.packs10=true; if(total>=50)   a.packs50=true; if(total>=100) a.packs100=true;
-
-
-
-
-
+    if(ACCOUNTS.filter(x=>x.rarity==="LR").every(x=>u.has(x.id))) a.allLR=true;
+    if(ACCOUNTS.filter(x=>x.rarity==="C").every(x=>u.has(x.id)))  a.allC=true;
+    if(ACCOUNTS.filter(x=>x.rarity==="R").every(x=>u.has(x.id)))  a.allR=true;
+    if(ACCOUNTS.filter(x=>x.rarity==="UR").every(x=>u.has(x.id))) a.allUR=true;
+    if(ACCOUNTS.every(x=>u.has(x.id))) a.fullSet=true;
     const bt = burnTotal ?? (prev._burnTotal||0);
     a._burnTotal = bt;
     if(bt>=50)  a.burn50=true;
@@ -1818,16 +2009,15 @@ function TheCabalApp() {
     // Roll next lucky chance after opening
     setNextIsLucky(Math.random() < LUCKY_CHANCE);
     setLuckyOpen(lucky);
-    save({ packs:st.packs-1, lastRegen: st.packs-1 < MAX_PACKS && st.packs >= MAX_PACKS ? Date.now() : st.lastRegen });
+    save({ packs:st.packs-1 });
     setPhase("shaking");
   }, [st.packs,st.pullCount,st.collection,phase,save,nextIsLucky]);
 
   const handleAnimEnd = useCallback(p => {
     if (p==="shaking") { setPhase("burst"); return; }
     if (p==="burst") {
-      if (!isBulkRef.current) setRC(drawPack(luckyRef.current));  // x1: draw here; x10: already drawn
+      if (!isBulkRef.current) setRC(drawPack(luckyRef.current));
       setRD(false);
-      // isBulk stays true until takeAll so reveal shows bulk grid
       setPhase("revealing");
     }
   }, []);
@@ -1841,7 +2031,7 @@ function TheCabalApp() {
     setIsBulk(true);
     setNextIsLucky(Math.random() < LUCKY_CHANCE); // reset lucky state after x10
     setLuckyOpen(false); // x10 ignores lucky
-    save({ packs:st.packs-10, lastRegen:Date.now() });
+    save({ packs:st.packs-10 });
     setPhase("shaking"); // show shaking+burst animation like x1
   }, [st.packs,st.pullCount,st.collection,phase,save]);
 
@@ -1860,7 +2050,7 @@ function TheCabalApp() {
     setIsBulk(false);
     const cards = revealCards;
     // Store only {id, _uid} — full card data is always reconstructed from ACCOUNTS_BY_ID
-    const newColl  = [...st.collection, ...cards.map(c => ({ id: c.id, _uid: c._uid, ...(c.pulledAt ? {pulledAt: c.pulledAt} : {pulledAt: Date.now()}) }))];
+    const newColl  = [...st.collection, ...cards.map(c => ({ id: c.id, _uid: c._uid }))];
     const packsN   = isBulk ? 10 : 1;
     const newTotal = st.totalOpened + packsN;
     const newPull  = st.pullCount + cards.length;
@@ -1921,47 +2111,31 @@ function TheCabalApp() {
     const m = {};
     st.collection.forEach(c => {
       const acc = ACCOUNTS_BY_ID[c.id];
-      if (!acc) return;
-      if (!m[c.id]) {
-        // First copy of this card — preserve acquisition date
-        m[c.id] = { ...acc, count: 0,
-          pulledAt: c.pulledAt || null,
-          tradedAt: c.tradedAt || null,
-        };
-      }
+      if (!acc) return; // skip unknown ids (e.g. old accounts that were removed)
+      if (!m[c.id]) m[c.id] = { ...acc, count: 0 };
       m[c.id].count++;
     });
     return Object.values(m).sort((a,b) => RARITY_ORDER.indexOf(a.rarity) - RARITY_ORDER.indexOf(b.rarity));
-  }, [st.collection]);
+  }, [st.collection, loaded]); // loaded ensures recompute after CSV loads
 
   if (!loaded) return (
-    <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",
-      fontFamily:"'DM Mono',monospace",color:"#444",fontSize:10,letterSpacing:2}}>
-      LOADING...
-    </div>
+    <LoadingScreen
+      progress={loadProgress}
+      error={loadErr}
+      onFile={handleCSVFile}
+    />
   );
 
   const mins=Math.floor(regenS/60), secs=regenS%60;
   const timerStr=`${mins}:${String(secs).padStart(2,"0")}`;
   const timerPct=((PACK_REGEN-regenS)/PACK_REGEN)*100;
-  const hasMissionDot = (() => {
-    try {
-      return DAILY_MISSIONS.some(m => { try { return m.check({...st}) && !(st.missions||{})[`claimed_${m.id}`]; } catch { return false; } })
-          || WEEKLY_MISSIONS.some(m => { try { return m.check({weekly:st.weekly||{},missions:st.missions,collection:st.collection}) && !(st.weekly||{})[`claimed_${m.id}`]; } catch { return false; } });
-    } catch { return false; }
-  })();
-
-  const navItems=[{k:"gacha",l:"GACHA"},{k:"collection",l:"COLLECTION"},{k:"forge",l:"FORGE"},{k:"exchange",l:"EXCHANGE"},{k:"missions",l:"MISSIONS"}];
+  const navItems=[{k:"gacha",l:"GACHA"},{k:"collection",l:"COLLECTION"},{k:"forge",l:"FORGE"},{k:"missions",l:"MISSIONS"}];
 
   return (
     <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",background:"#060606",
       fontFamily:"'DM Mono',monospace",color:"#e0e0e0"}}>
 
       {/* Notification */}
-      {autoClaimToken && loaded && (
-        <AutoClaimModal token={autoClaimToken} st={st} save={save} notify={notify}
-          onDone={()=>{ setAutoClaimToken(null); window.history.replaceState({},"","/"); }}/>
-      )}
       {showGyroPrompt && (
         <GyroPermissionPrompt onDone={() => setShowGyroPrompt(false)}/>
       )}
@@ -1973,11 +2147,11 @@ function TheCabalApp() {
       )}
 
       {/* Header */}
-      <div style={{borderBottom:"1px solid #111",width:"100%"}}><header style={{padding:"18px 20px 0",maxWidth:680,margin:"0 auto",width:"100%"}}>
+      <header style={{padding:"18px 20px 0",borderBottom:"1px solid #111",maxWidth:680,margin:"0 auto",width:"100%"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:14}}>
           <div>
 
-            <div onClick={()=>setTab("gacha")} style={{cursor:"pointer"}}><Logo/></div>
+            <Logo/>
           </div>
           <div style={{display:"flex",gap:6,alignItems:"center"}}>
 
@@ -2004,16 +2178,10 @@ function TheCabalApp() {
               background:"transparent",border:"none",
               borderBottom:`1px solid ${tab===k?"#d0d0d0":"transparent"}`,
               color:tab===k?"#d0d0d0":"#555",fontSize:8,padding:"8px 12px 10px",
-              cursor:"pointer",letterSpacing:1.5,transition:"color .15s",position:"relative"}}>
-              {l}
-              {k==="missions" && hasMissionDot && (
-                <span style={{position:"absolute",top:6,right:0,width:6,height:6,
-                  borderRadius:"50%",background:"#22c55e",display:"block"}}/>
-              )}
-            </button>
+              cursor:"pointer",letterSpacing:1.5,transition:"color .15s"}}>{l}</button>
           ))}
         </nav>
-      </header></div>
+      </header>
 
       <main style={{flex:1,maxWidth:680,margin:"0 auto",width:"100%",padding:"22px 20px 60px"}}>
 
@@ -2101,13 +2269,13 @@ function TheCabalApp() {
                       cardWidth={200}
                       ownedIds={ownedIds}
                     />
-                    <button onClick={()=>setRD(true)} style={{
+                    <button onClick={handleTakeAll} style={{
                       fontFamily:"'DM Mono',monospace",background:"transparent",
-                      border:"1px solid #1e1e1e",borderRadius:5,padding:"8px 28px",
-                      color:"#333",fontSize:9,letterSpacing:2,cursor:"pointer",transition:"all .2s"}}
-                      onMouseEnter={e=>{e.target.style.borderColor="#444";e.target.style.color="#666";}}
-                      onMouseLeave={e=>{e.target.style.borderColor="#1e1e1e";e.target.style.color="#333";}}>
-                      SKIP OPENING
+                      border:"1px solid #2a2a2a",borderRadius:5,padding:"8px 28px",
+                      color:"#484848",fontSize:9,letterSpacing:2,cursor:"pointer",transition:"all .2s"}}
+                      onMouseEnter={e=>{e.target.style.borderColor="#555";e.target.style.color="#999";}}
+                      onMouseLeave={e=>{e.target.style.borderColor="#2a2a2a";e.target.style.color="#484848";}}>
+                      TAKE ALL ({revealCards.length})
                     </button>
                   </div>
                 ) : (
@@ -2150,7 +2318,6 @@ function TheCabalApp() {
         {tab==="collection" && <CollectionView unique={uniqueCards} notify={notify}/>}
         {tab==="forge"      && <ForgeView uniqueCards={uniqueCards} st={st} save={save} notify={notify}/>}
         {tab==="missions"   && <MissionsView st={st} save={save} notify={notify} uniqueCards={uniqueCards}/>}
-        {tab==="exchange"   && <ExchangeView st={st} save={save} notify={notify} uniqueCards={uniqueCards}/>}
       </main>
 
       <footer style={{textAlign:"center",padding:"14px 0 18px",fontSize:8,color:"#333",
@@ -2187,7 +2354,7 @@ function CardModal({ card, onClose }) {
     };
   }, [onClose]);
 
-  const twitterUrl = card.handle ? `https://x.com/${card.handle.replace("@","")}` : null;
+  const twitterUrl = card.creator ? `https://etherscan.io/address/${card.creator}` : null;
 
   return (
     <div
@@ -2230,32 +2397,24 @@ function CardModal({ card, onClose }) {
         <span style={{color:"#555"}}>click to flip</span>
         <span style={{color:"#2a2a2a"}}>·</span>
         {card.handle ? (
-          <a href={twitterUrl} target="_blank" rel="noopener noreferrer"
-            style={{color:"#555",textDecoration:"none",transition:"color .15s"}}
+          <a
+            href={twitterUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{color:"#555", textDecoration:"none", transition:"color .15s"}}
             onMouseEnter={e=>e.target.style.color="#aaa"}
-            onMouseLeave={e=>e.target.style.color="#555"}>follow on X ↗</a>
+            onMouseLeave={e=>e.target.style.color="#555"}
+          >follow on X ↗</a>
         ) : (
-          <span style={{color:"#333",fontFamily:"'DM Mono',monospace",fontSize:10}}>identity unknown</span>
+          <span style={{color:"#333", fontFamily:"'DM Mono',monospace", fontSize:10}}>identity unknown</span>
         )}
       </div>
-      {/* Acquisition date */}
-      {(card.pulledAt || card.tradedAt) && (
-        <div onClick={e=>e.stopPropagation()} style={{
-          fontFamily:"'DM Mono',monospace",fontSize:9,color:"#333",letterSpacing:.5,
-          textAlign:"center",marginTop:-8,
-        }}>
-          {card.tradedAt
-            ? `traded · ${new Date(card.tradedAt).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"})}`
-            : `first pulled · ${new Date(card.pulledAt).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"})}`
-          }
-        </div>
-      )}
     </div>
   );
 }
 
 /* ── LazyCard — defers mounting FlippableCard until near viewport. ── */
-function LazyCard({ card, dispW, notify, count, onCardClick, unowned=false }) {
+function LazyCard({ card, dispW, notify, count, onCardClick }) {
   const wrapRef  = useRef(null);
   const [visible, setVisible] = useState(false);
   const CARD_H = Math.round(dispW * (470/300));
@@ -2319,19 +2478,12 @@ function CollectionView({ unique, notify }) {
   const [modalCard, setModalCard] = useState(null);
   const [search,setSearch] = useState("");
   const [sort,setSort]     = useState("rarity");
-  const [ownedOnly,setOwnedOnly] = useState(false);
   const [sortDir,setSortDir] = useState("desc");  // desc = rarest first, asc = common first
 
   // Build a set of collected ids for placeholder logic
   const collectedIds = useMemo(() => new Set(unique.map(c=>c.id)), [unique]);
 
-  const allSorted = useMemo(() => {
-    return [...unique].sort((a,b) => {
-      const rd = RARITY_ORDER.indexOf(a.rarity) - RARITY_ORDER.indexOf(b.rarity);
-      if (rd !== 0) return sortDir === "desc" ? rd : -rd;
-      return (a.name||"").localeCompare(b.name||"");
-    });
-  }, [unique, sortDir]);
+  // With 343k cards we never render placeholders — collection shows only owned cards
 
   // Collected cards as a map for fast lookup
   const collectedMap = useMemo(() => {
@@ -2344,21 +2496,21 @@ function CollectionView({ unique, notify }) {
   const isFiltering = filter !== "ALL" || catFilter !== "ALL" || search.trim() !== "";
 
   const filteredCollected = useMemo(() => {
-    let arr = [...unique];
+    let arr = unique;
     if (filter!=="ALL") arr=arr.filter(c=>c.rarity===filter);
-    if (catFilter!=="ALL") arr=arr.filter(c=>(c.cat||"").split("/").map(s=>s.trim()).includes(catFilter));
+    if (catFilter!=="ALL") arr=arr.filter(c=>c.cat.split("/").map(s=>s.trim()).includes(catFilter));
     if (search) {
       const q=search.toLowerCase();
-      arr=arr.filter(c=>(c.handle||"").toLowerCase().includes(q)||(c.name||"").toLowerCase().includes(q)||(c.cat||"").toLowerCase().includes(q));
+      arr=arr.filter(c=>c.handle.toLowerCase().includes(q)||c.name.toLowerCase().includes(q)||c.cat.toLowerCase().includes(q));
     }
     if (sort==="count") arr=[...arr].sort((a,b)=>b.count-a.count);
     else if (sort==="rarity") arr=[...arr].sort((a,b)=>{
       const rd = RARITY_ORDER.indexOf(a.rarity) - RARITY_ORDER.indexOf(b.rarity);
       if (rd!==0) return sortDir==="desc" ? rd : -rd;
-      return (a.name||"").localeCompare(b.name||"");
+      return a.name.localeCompare(b.name);
     });
     return arr;
-  }, [unique,filter,catFilter,search,sort,sortDir,ownedOnly]);
+  }, [unique,filter,catFilter,search,sort,sortDir]);
 
   const inp = {fontFamily:"'DM Mono',monospace",background:"#0a0a0a",border:"1px solid #1e1e1e",
     borderRadius:4,color:"#aaa",fontSize:11,padding:"5px 9px",outline:"none"};
@@ -2373,20 +2525,13 @@ function CollectionView({ unique, notify }) {
         <div>
           <div style={{fontSize:8,color:"#555",letterSpacing:2}}>COLLECTION</div>
           <div style={{fontSize:22,marginTop:2}}>
-            {unique.length}<span style={{fontSize:9,color:"#444",marginLeft:5}}>/ ∞ unique</span>
+            {unique.length}<span style={{fontSize:9,color:"#444",marginLeft:5}}>/ {ACCOUNTS.length.toLocaleString()} total</span>
           </div>
         </div>
       </div>
 
       {/* ── Filter row ── */}
       <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:8}}>
-        <button onClick={()=>setOwnedOnly(o=>!o)} style={{
-          fontFamily:"'DM Mono',monospace",fontSize:8,letterSpacing:1,padding:"5px 10px",
-          borderRadius:4,cursor:"pointer",flexShrink:0,
-          background:ownedOnly?"#1a1a1a":"transparent",
-          border:`1px solid ${ownedOnly?"#555":"#1e1e1e"}`,
-          color:ownedOnly?"#c8c8c8":"#333",transition:"all .12s",
-        }}>{ownedOnly?"OWNED":"ALL"}</button>
         <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="search..."
           style={{...inp,flex:1,minWidth:90}}/>
         {/* Rarity sort toggle */}
@@ -2414,7 +2559,7 @@ function CollectionView({ unique, notify }) {
       <div style={{marginBottom:12}}>
         <select value={catFilter} onChange={e=>setCatFilter(e.target.value)} style={{...inp,width:"100%"}}>
           <option value="ALL">all types</option>
-          {[...new Set(unique.flatMap(a=>(a.cat||"Artist").split("/").map(s=>s.trim())))].sort().map(c=>(
+          {["Foundation"].map(c=>(
             <option key={c} value={c}>{c}</option>
           ))}
         </select>
@@ -2426,45 +2571,21 @@ function CollectionView({ unique, notify }) {
         </div>
       )}
 
-      {/* ── Full grid with placeholders (no search/filter active) ── */}
+      {/* ── Full grid: owned cards only (343k pool — no placeholders) ── */}
       {!isFiltering && (
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:10}}>
-          {(ownedOnly ? allSorted.filter(a=>collectedMap[a.id]) : allSorted).map(acc => {
-            const card = collectedMap[acc.id];
-            const serial = SERIAL_MAP[acc.id];
-            const r = RARITIES[acc.rarity];
-            if (card) {
-              // Owned — lazy-mounted FlippableCard (deferred until near viewport)
-              return (
-                <LazyCard key={acc.id} card={card} dispW={CARD_W} notify={notify} count={card.count} onCardClick={setModalCard}/>
-              );
-            } else {
-              // Not yet collected — grey placeholder, shows only serial number
-              return (
-                <div key={acc.id} style={{
-                  display:"flex",justifyContent:"center",alignItems:"center",
-                  width:CARD_W, height:CARD_H, margin:"0 auto",
-                  background:"#0a0a0a",
-                  border:`1px solid ${r.color}18`,
-                  borderRadius:7,
-                  flexDirection:"column",gap:6,
-                }}>
-                  <div style={{
-                    fontSize:10,color:"#252525",
-                    fontFamily:"'DM Mono',monospace",letterSpacing:1,
-                  }}>#{String(serial).padStart(3,"0")}</div>
-                  <div style={{
-                    width:24,height:1,background:r.color+"22",
-                  }}/>
-                  <div style={{
-                    fontSize:7,color:r.color+"40",letterSpacing:1,
-                    fontFamily:"'DM Mono',monospace",
-                  }}>???</div>
-                </div>
-              );
-            }
-          })}
-        </div>
+        unique.length === 0
+          ? <div style={{textAlign:"center",color:"#2a2a2a",fontSize:9,padding:60,letterSpacing:1,fontFamily:"'DM Mono',monospace"}}>
+              no cards yet — open some packs
+            </div>
+          : <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:10}}>
+              {[...unique].sort((a,b) => {
+                const rd = RARITY_ORDER.indexOf(a.rarity) - RARITY_ORDER.indexOf(b.rarity);
+                if (rd !== 0) return sortDir === "desc" ? rd : -rd;
+                return a.name.localeCompare(b.name);
+              }).map(card => (
+                <LazyCard key={card._uid || card.id} card={card} dispW={CARD_W} notify={notify} count={card.count} onCardClick={setModalCard}/>
+              ))}
+            </div>
       )}
 
       {/* ── Filtered view: only matching collected cards ── */}
@@ -2473,16 +2594,11 @@ function CollectionView({ unique, notify }) {
           ? <div style={{textAlign:"center",color:"#2a2a2a",fontSize:9,padding:40,letterSpacing:1}}>nothing matches</div>
           : <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:10}}>
               {filteredCollected.map(card=>(
-                <LazyCard key={card.id} card={card} dispW={CARD_W} notify={notify} count={card.count} onCardClick={setModalCard} unowned={card.count===0}/>
+                <LazyCard key={card.id} card={card} dispW={CARD_W} notify={notify} count={card.count} onCardClick={setModalCard}/>
               ))}
             </div>
       )}
 
-      {!isFiltering && unique.length===0 && (
-        <div style={{textAlign:"center",color:"#2a2a2a",fontSize:9,padding:"40px 0 0",letterSpacing:1}}>
-          open some packs to start collecting
-        </div>
-      )}
     </div>
   );
 }
@@ -2539,13 +2655,11 @@ const ACHI_DEF = [
   { id:"burn50",      s:"FORGE", label:"Melt Down",        desc:"Burn 50 duplicate cards in the Forge",reward:2 },
   { id:"burn100",     s:"FORGE", label:"The Furnace",      desc:"Burn 100 duplicate cards in the Forge",reward:4 },
   { id:"burnLR",      s:"FORGE", label:"Sacrilege",        desc:"Burn a Legendary card",               reward:5 },
-  // ── EXCHANGE ──
-  { id:"exSendC",  s:"EXCHANGE", label:"First Contact",  desc:"Send a Common card",            reward:1 },
-  { id:"exSendR",  s:"EXCHANGE", label:"Generous",       desc:"Send a Rare card",              reward:2 },
-  { id:"exSendUR", s:"EXCHANGE", label:"Big Spender",    desc:"Send an Ultra Rare card",       reward:3 },
-  { id:"exSendLR", s:"EXCHANGE", label:"Legendary Gift", desc:"Send a Legendary card",         reward:5 },
-  { id:"exRecvC",  s:"EXCHANGE", label:"Received",       desc:"Claim a card from another player", reward:1 },
-  { id:"exRecvR",  s:"EXCHANGE", label:"Lucky Claim",    desc:"Claim a Rare or better card",   reward:2 },
+  // ── CAMPAIGN ──
+
+
+
+
 ];
 
 
@@ -2759,8 +2873,8 @@ function ForgeView({ uniqueCards, st, save, notify }) {
                   }}>
                   {/* Photo */}
                   <div style={{ aspectRatio:"1/1", background:"#0d0d0d", overflow:"hidden" }}>
-                    <img draggable="false" src={ASSET.cardPfp(card.handle)} alt=""
-                      onError={e=>{e.target.style.display="none";}}
+                    <img loading="lazy" src={(card.image_cid ? ipfsUrl(card.image_cid) : null)} alt=""
+                      onError={e=>ipfsOnError(e, card.image_cid)}
                       style={{ width:"100%", height:"100%", objectFit:"cover",
                         filter: isSelected ? "none" : "grayscale(0.35) brightness(0.6)",
                         transition:"filter .15s" }}/>
@@ -3502,11 +3616,11 @@ const IC_DEALS = [
 
 // Pick a caster of matching type, excluding the player card
 function icCaster(cat, excludeId) {
-  const typed = [].filter(a => a.rarity && a.handle && a.id !== excludeId &&
+  const typed = ACCOUNTS.filter(a => a.rarity && a.handle && a.id !== excludeId &&
     (a.cat||"").split("/")[0].trim() === cat);
-  const fallback = [];
+  const fallback = ACCOUNTS.filter(a => a.rarity && a.handle && a.id !== excludeId);
   const pool = typed.length >= 2 ? typed : fallback;
-  return pool[Math.floor(Math.random()*pool.length)] || null;
+  return pool[Math.floor(Math.random()*pool.length)] || ACCOUNTS.find(a=>a.id!==excludeId) || ACCOUNTS[0];
 }
 
 // Main pick function — 8% event chance, no event while one is active
@@ -3636,8 +3750,8 @@ function ICDealCard({ deal, player, dispW }) {
       display:"flex", flexDirection:"column", flexShrink:0,
     }}>
       <div style={{height:"52%",overflow:"hidden",position:"relative",flexShrink:0}}>
-        <img draggable="false" src={ASSET.cardPfp(deal.caster?.handle||"")} alt=""
-          onError={e=>{e.target.style.display="none";}}
+        <img src={ASSET.cardPfp(deal.caster?.handle||"")} alt=""
+          onError={e=>ipfsOnError(e, card.image_cid)}
           style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"center 15%"}}/>
         <div style={{position:"absolute",inset:0,
           background:"linear-gradient(to bottom,transparent 35%,rgba(0,0,0,0.92))"}}/>
@@ -4022,8 +4136,8 @@ function ICSummaryCard({ player, turns, death, stats, dispW, onShare, onNext }) 
       <div style={{display:"flex",alignItems:"center",gap:10}}>
         <div style={{width:Math.round(dispW*.2),height:Math.round(dispW*.2*(470/300)),
           borderRadius:4,overflow:"hidden",border:`1px solid ${r.color}66`,flexShrink:0}}>
-          <img draggable="false" src={ASSET.cardPfp(player.handle||"")} alt=""
-            onError={e=>{e.target.style.display="none";}}
+          <img src={ASSET.cardPfp(player.handle||"")} alt=""
+            onError={e=>ipfsOnError(e, card.image_cid)}
             style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"center 15%"}}/>
         </div>
         <div>
@@ -4372,8 +4486,8 @@ function InnerCircleView({ uniqueCards, st, save, notify }) {
             <div style={{display:"flex",alignItems:"center",gap:6,minWidth:70}}>
               <div style={{width:28,height:Math.round(28*470/300),borderRadius:3,
                 overflow:"hidden",border:`1px solid ${r.color}55`,flexShrink:0}}>
-                <img draggable="false" src={ASSET.cardPfp(player.handle)} alt=""
-                  onError={e=>{e.target.style.display="none";}}
+                <img src={ASSET.cardPfp(player.handle)} alt=""
+                  onError={e=>ipfsOnError(e, card.image_cid)}
                   style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"center 15%"}}/>
               </div>
               <div style={{...mono,fontSize:8,color:IC_TYPE_COLOR[type]||"#555",
@@ -4533,43 +4647,11 @@ function GyroToggleButton() {
   );
 }
 
-function CollapsibleSection({ label, children, badge=false }) {
-  const [open, setOpen] = useState(false);
-  const mono = { fontFamily:"'DM Mono',monospace" };
-  return (
-    <div style={{marginBottom:16}}>
-      <div onClick={()=>setOpen(o=>!o)} style={{
-        display:"flex",justifyContent:"space-between",alignItems:"center",
-        cursor:"pointer",padding:"8px 0",borderBottom:"1px solid #111",
-        marginBottom:open?12:0,userSelect:"none",WebkitUserSelect:"none",
-      }}>
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
-          <span style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"#555",letterSpacing:2}}>{label}</span>
-          {badge && <span style={{display:"inline-block",width:7,height:7,borderRadius:"50%",
-            background:"#22c55e",boxShadow:"0 0 5px #22c55e"}}/>}
-        </div>
-        <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"#333"}}>{open?"−":"+"}</span>
-      </div>
-      {open && <div style={{paddingTop:4}}>{children}</div>}
-    </div>
-  );
-}
-
 function MissionsView({ st, save, notify, uniqueCards }) {
   const mono = { fontFamily:"'DM Mono',monospace" };
 
   const ownedRarities = new Set(uniqueCards.map(c=>c.rarity));
   const allRarities = ["LR","UR","R","C"].every(r=>ownedRarities.has(r));
-
-  const hasDailyBadge = DAILY_MISSIONS.some(m => {
-    try { return m.check({...st,missions:{...(st.missions||{}),allRarities}}) && !(st.missions||{})[`claimed_${m.id}`]; } catch { return false; }
-  });
-  const hasWeeklyBadge = WEEKLY_MISSIONS.some(m => {
-    try { return m.check({weekly:st.weekly||{},missions:st.missions,collection:st.collection}) && !(st.weekly||{})[`claimed_${m.id}`]; } catch { return false; }
-  });
-  const hasAchiBadge = ACHI_DEF.some(a => {
-    return (st.achievements?.[a.id]) && !st.achievements?.[`claimed_${a.id}`];
-  });
 
   const claimMission = useCallback((missionId, reward, isWeekly) => {
     const updateMs = isWeekly
@@ -4588,8 +4670,8 @@ function MissionsView({ st, save, notify, uniqueCards }) {
   const StatusDot = ({ done, claimed }) => (
     <div style={{
       width:8, height:8, borderRadius:"50%", flexShrink:0,
-      background: claimed ? "#1a3a1a" : done ? "#22c55e" : "#1e1e1e",
-      boxShadow: done && !claimed ? "0 0 6px #22c55e88" : "none",
+      background: claimed ? "#22c55e" : done ? "#4ade80" : "#1e1e1e",
+      boxShadow: done && !claimed ? "0 0 6px #4ade8066" : "none",
       transition:"all .2s",
     }}/>
   );
@@ -4637,7 +4719,7 @@ function MissionsView({ st, save, notify, uniqueCards }) {
       <div style={{
         display:"flex", alignItems:"center", gap:12, padding:"9px 12px",
         background:"#080808",
-        border:`1px solid ${canClaim?"#333":unlocked?"#181818":"#111"}`,
+        border:`1px solid ${canClaim?"#2a2a2a":unlocked?"#181818":"#111"}`,
         borderRadius:5, marginBottom:4, transition:"border-color .2s",
       }}>
         <StatusDot done={unlocked} claimed={claimed}/>
@@ -4662,7 +4744,6 @@ function MissionsView({ st, save, notify, uniqueCards }) {
     );
   };
 
-
   const Section = ({ label, children }) => (
     <div style={{marginBottom:22}}>
       <div style={{...mono, fontSize:7.5, color:"#444", letterSpacing:2.5, marginBottom:10}}>{label}</div>
@@ -4672,33 +4753,27 @@ function MissionsView({ st, save, notify, uniqueCards }) {
 
   return (
     <div style={{animation:"slideUp .3s ease"}}>
-      <CollapsibleSection label="DAILY" badge={hasDailyBadge}>
+      <Section label="DAILY">
         {DAILY_MISSIONS.map(m => <MissionRow key={m.id} m={m} isWeekly={false}/>)}
-      </CollapsibleSection>
+      </Section>
 
-      <CollapsibleSection label="WEEKLY" badge={hasWeeklyBadge}>
+      <Section label="WEEKLY">
         {WEEKLY_MISSIONS.map(m => <MissionRow key={m.id} m={m} isWeekly={true}/>)}
-      </CollapsibleSection>
+      </Section>
 
-      <CollapsibleSection label="ACHIEVEMENTS" badge={hasAchiBadge}>
+      <Section label="ACHIEVEMENTS">
         {["GACHA","FORGE"].map(sector => {
           const sItems = ACHI_DEF.filter(a=>a.s===sector);
           return (
             <div key={sector} style={{marginBottom:14}}>
-              <div style={{fontFamily:"'DM Mono',monospace",fontSize:6.5,color:"#2a2a2a",letterSpacing:2,marginBottom:6}}>{sector}</div>
+              <div style={{...mono,fontSize:6.5,color:"#2a2a2a",letterSpacing:2,marginBottom:6}}>{sector}</div>
               {sItems.map(a=><AchiRow key={a.id} a={a}/>)}
             </div>
           );
         })}
-      </CollapsibleSection>
+      </Section>
 
-      <CollapsibleSection label="EXCHANGE">
-        {ACHI_DEF.filter(a=>a.s==="EXCHANGE").map(a=><AchiRow key={a.id} a={a}/>)}
-      </CollapsibleSection>
-
-      {/* SETTINGS AND STATS — always visible, not collapsible */}
-      <div style={{marginBottom:16,paddingTop:8,borderTop:"1px solid #111"}}>
-        <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"#555",letterSpacing:2,marginBottom:12}}>SETTINGS AND STATS</div>
+      <Section label="STATS">
         <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:14}}>
           {Object.entries(RARITIES).map(([k,v])=>(
             <div key={k} style={{background:v.color+"18",border:`1px solid ${v.color}40`,borderRadius:4,padding:"5px 12px",flex:"1 1 40%"}}>
@@ -4719,7 +4794,7 @@ function MissionsView({ st, save, notify, uniqueCards }) {
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4}}>
           {[
             ["Packs opened",    st.totalOpened],
-            ["Unique cards",    `${uniqueCards.length}`],
+            ["Unique cards",    `${uniqueCards.length} / ${ACCOUNTS.length}`],
             ["Total pulls",     st.pullCount],
             ["UR + LR owned",   uniqueCards.filter(c=>c.rarity==="UR"||c.rarity==="LR").reduce((s,c)=>s+c.count,0)],
             ["Legendaries",     uniqueCards.filter(c=>c.rarity==="LR").reduce((s,c)=>s+c.count,0)],
@@ -4730,399 +4805,9 @@ function MissionsView({ st, save, notify, uniqueCards }) {
               <div style={{...mono,color:"#d0d0d0",fontSize:18,fontWeight:500,lineHeight:1}}>{v}</div>
             </div>
           ))}
-      </div>
-
-      </div>
-    </div>
-  );
-}
-
-
-/* ══════════════════════════════════════════════════════
-   EXCHANGE VIEW — P2P card trading via single-use tokens
-══════════════════════════════════════════════════════ */
-function AutoClaimModal({ token, st, save, notify, onDone }) {
-  const mono = { fontFamily:"'DM Mono',monospace" };
-  const [status, setStatus] = useState("loading");
-  const [claimedCard, setClaimedCard] = useState(null);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    fetch("/api/claim", {
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ token })
-    }).then(r=>r.json()).then(data => {
-      if (data.error) { setStatus("error"); setError(data.error); return; }
-      const card = data.cardData;
-      const newEntry = { id:card.id, _uid: card._uid || `${card.id}_${Date.now()}`, tradedAt: Date.now() };
-      const exA = {...(st.achievements||{}), exRecvC:true};
-      if(card.rarity==="R"||card.rarity==="UR"||card.rarity==="LR") exA.exRecvR=true;
-      save({ collection:[...st.collection, newEntry], achievements:exA });
-      setClaimedCard(card); setStatus("success");
-      notify("Card added to your collection!");
-    }).catch(e => { setStatus("error"); setError(e.message); });
-  }, []);
-
-  return (
-    <div style={{position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,0.92)",
-      display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
-      gap:20,padding:24}}>
-      {status==="loading" && <div style={{...mono,fontSize:11,color:"#555",letterSpacing:2}}>CLAIMING CARD...</div>}
-      {status==="success" && claimedCard && (<>
-        <div style={{...mono,fontSize:9,color:"#555",letterSpacing:1}}>CARD CLAIMED</div>
-        <div style={{width:200}}><FlippableCard card={{...claimedCard,count:1}} dispW={200}/></div>
-        <div style={{...mono,fontSize:11,color:RARITIES[claimedCard.rarity]?.accent||"#d0d0d0",textAlign:"center"}}>
-          {claimedCard.name} added to your collection
         </div>
-        <button onClick={onDone} style={{...mono,fontSize:9,letterSpacing:2,padding:"10px 28px",
-          background:"transparent",border:"1px solid #444",borderRadius:5,color:"#999",cursor:"pointer"}}>
-          NICE
-        </button>
-      </>)}
-      {status==="error" && (<>
-        <div style={{...mono,fontSize:10,color:"#c84b31",textAlign:"center"}}>{error}</div>
-        <button onClick={onDone} style={{...mono,fontSize:9,color:"#555",background:"transparent",
-          border:"none",cursor:"pointer",letterSpacing:1}}>close</button>
-      </>)}
-    </div>
-  );
-}
+      </Section>
 
-function ExchangeView({ st, save, notify, uniqueCards }) {
-  const mono = { fontFamily:"'DM Mono',monospace" };
-  const [mode, setMode]           = useState("menu");    // menu | send | preview | claim
-  const [selected, setSelected]   = useState(null);      // card to send
-  const [token, setToken]         = useState("");         // generated or entered token
-  const [claimInput, setClaimInput] = useState("");
-  const [exSearch, setExSearch]   = useState("");
-  const [loading, setLoading]     = useState(false);
-  const [error, setError]         = useState("");
-  const [claimedCard, setClaimedCard] = useState(null);
-
-  const API = ""; // same origin
-
-  // All cards (including singles — sender might want to gift)
-  const sortedCards = [...uniqueCards].sort((a,b) =>
-    RARITY_ORDER.indexOf(a.rarity) - RARITY_ORDER.indexOf(b.rarity)
-  );
-
-  async function handleSend() {
-    if (!selected) return;
-    setLoading(true); setError("");
-    try {
-      const res = await fetch(`${API}/api/transfer`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cardId: selected.id,
-          cardData: { id: selected.id, name: selected.name, rarity: selected.rarity,
-                      handle: selected.handle, cat: selected.cat, _uid: `${selected.id}_${Date.now()}` }
-        })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Server error");
-      // Remove card from save
-      // Remove ONE instance of this card id from the collection
-      let removed = false;
-      const newCollection = st.collection.filter(c => {
-        if (!removed && c.id === selected.id) { removed = true; return false; }
-        return true;
-      });
-      save({ collection: newCollection });
-      setToken(data.token);
-      setMode("sent");
-      notify("Card removed from your collection");
-    } catch(e) {
-      setError(e.message);
-    } finally { setLoading(false); }
-  }
-
-  async function handleClaim() {
-    const t = claimInput.trim().toUpperCase();
-    if (!t) return;
-    setLoading(true); setError("");
-    try {
-      const res = await fetch(`${API}/api/claim`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: t })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Token invalid or already used");
-      // Add card to save
-      const card = data.cardData;
-      const newEntry = { id: card.id, _uid: card._uid || `${card.id}_${Date.now()}`, tradedAt: Date.now() };
-      const exA2 = {...(st.achievements||{}), exRecvC:true};
-      if(card.rarity==="R"||card.rarity==="UR"||card.rarity==="LR") exA2.exRecvR=true;
-      save({ collection: [...st.collection, newEntry], achievements: exA2 });
-      setClaimedCard(card);
-      setMode("claimed");
-      notify("Card added to your collection!");
-    } catch(e) {
-      setError(e.message);
-    } finally { setLoading(false); }
-  }
-
-  const btnStyle = (active) => ({
-    ...mono, fontSize:9, letterSpacing:1, padding:"8px 18px",
-    background:"transparent", borderRadius:5, cursor:"pointer",
-    border: `1px solid ${active ? "#666" : "#222"}`,
-    color: active ? "#d0d0d0" : "#444", transition:"all .15s",
-  });
-
-  const cardGrid = (cards) => (
-    <div style={{display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(86px,1fr))", gap:7}}>
-      {cards.map((card, idx) => {
-        const r = RARITIES[card.rarity];
-        const cardKey = card._uid || card.id + '_' + idx;
-        const isSel = selected?.id === card.id;
-        return (
-          <div key={cardKey} onClick={() => { setSelected(card); setMode("preview"); }}
-            style={{
-              cursor:"pointer", borderRadius:5, overflow:"hidden",
-              border:`1.5px solid ${isSel ? r.color : r.color+"44"}`,
-              background: isSel ? r.color+"12" : "#0c0c0c",
-              transition:"border-color .12s, background .12s", position:"relative",
-            }}>
-            <div style={{position:"relative", width:"100%", paddingBottom:"100%", background:"#0d0d0d", overflow:"hidden"}}>
-              <div style={{position:"absolute",inset:0}}>
-              <img draggable="false" src={ASSET.cardPfp(card.handle)} alt="" onError={e=>{e.target.style.display="none";}}
-                style={{width:"100%",height:"100%",objectFit:"cover",
-                  filter: isSel ? "none" : "grayscale(0.35) brightness(0.6)",
-                  transition:"filter .15s"}}/>
-              </div>
-            </div>
-            <div style={{padding:"4px 5px 5px", ...mono}}>
-              <div style={{fontSize:7, color: isSel ? r.accent : r.accent+"88",
-                whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}>{card.name}</div>
-              <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:1}}>
-                <span style={{fontSize:6, color:r.color, letterSpacing:.3}}>{r.short}</span>
-                {card.count > 1 && <span style={{fontSize:6.5, color:"#383838"}}>×{card.count}</span>}
-              </div>
-            </div>
-            {isSel && (
-              <div style={{position:"absolute",top:4,right:4,background:r.color,
-                color:"#000",borderRadius:3,padding:"1px 5px",fontSize:7,fontFamily:"'DM Mono',monospace",
-                fontWeight:600}}>✓</div>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-
-  return (
-    <div style={{animation:"slideUp .3s ease"}}>
-      {/* Mode selector */}
-      {mode === "menu" && (
-        <div style={{display:"flex",flexDirection:"column",gap:16}}>
-          <p style={{...mono, fontSize:10, color:"#555", lineHeight:1.6}}>
-            Send a card to another player by generating a single-use claim token.
-            The card is removed from your collection immediately.
-          </p>
-          <div style={{display:"flex",gap:8}}>
-            <button style={btnStyle(false)} onClick={()=>setMode("send")}>SEND A CARD</button>
-            <button style={btnStyle(false)} onClick={()=>setMode("claim")}>CLAIM A CARD</button>
-          </div>
-        </div>
-      )}
-
-      {/* SEND */}
-      {mode === "send" && (
-        <div style={{display:"flex",flexDirection:"column",gap:12}}>
-          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-            <button onClick={()=>{setMode("menu");setSelected(null);setError("");setExSearch("");}}
-              style={{...mono,fontSize:8,color:"#555",background:"transparent",border:"none",cursor:"pointer"}}>
-              ← back
-            </button>
-            <div style={{...mono,fontSize:9,color:"#666",letterSpacing:1}}>SELECT CARD TO SEND</div>
-          </div>
-          <input value={exSearch} onChange={e=>setExSearch(e.target.value)}
-            placeholder="search..." style={{
-              ...mono,fontSize:9,width:"100%",padding:"6px 10px",marginBottom:8,
-              background:"#0a0a0a",border:"1px solid #1e1e1e",borderRadius:4,
-              color:"#888",outline:"none",boxSizing:"border-box",
-            }}/>
-          {cardGrid(sortedCards.filter(c=>(c.name||"").toLowerCase().includes(exSearch.toLowerCase())||(c.handle||"").toLowerCase().includes(exSearch.toLowerCase())))}
-          {error && <div style={{...mono,fontSize:8,color:"#c84b31",letterSpacing:.5}}>{error}</div>}
-        </div>
-      )}
-
-      {/* PREVIEW — full size card, swipe left to send */}
-      {mode === "preview" && selected && (() => {
-        const r = RARITIES[selected.rarity];
-        const CARD_W = Math.min(280, window.innerWidth - 48);
-        let startX = null, startY = null;
-        let dragX = 0, dragY = 0;
-        let dragging = false;
-
-        const onPointerDown = e => {
-          startX = e.clientX ?? e.touches?.[0]?.clientX;
-          startY = e.clientY ?? e.touches?.[0]?.clientY;
-          dragging = true;
-          dragX = 0; dragY = 0;
-          e.currentTarget.style.transition = "none";
-        };
-        const onPointerMove = e => {
-          if (!dragging || startX === null) return;
-          const x = e.clientX ?? e.touches?.[0]?.clientX;
-          const y = e.clientY ?? e.touches?.[0]?.clientY;
-          dragX = x - startX; dragY = y - startY;
-          const dist = Math.abs(dragX) + Math.abs(dragY||0);
-          e.currentTarget.style.transform = `translateX(${dragX}px) translateY(${dragY||0}px) rotate(${dragX * 0.04}deg)`;
-          e.currentTarget.style.opacity = String(Math.max(0.3, 1 - dist / 250));
-        };
-        const onPointerUp = e => {
-          dragging = false;
-          if (Math.abs(dragX) > 80 || Math.abs(dragY) > 80) {
-            // Swiped left enough → send
-            e.currentTarget.style.transition = "transform 0.3s ease, opacity 0.3s ease";
-            const dir = Math.abs(dragX) > Math.abs(dragY) ? (dragX > 0 ? "120%" : "-120%") : "0";
-            const dirY = Math.abs(dragY) > Math.abs(dragX) ? (dragY > 0 ? "120%" : "-120%") : "0";
-            e.currentTarget.style.transform = `translateX(${dir}) translateY(${dirY}) rotate(${dragX * 0.1}deg)`;
-            e.currentTarget.style.opacity = "0";
-            setTimeout(() => handleSend(), 280);
-          } else {
-            // Not enough → snap back
-            e.currentTarget.style.transition = "transform 0.3s ease, opacity 0.3s ease";
-            e.currentTarget.style.transform = "translateX(0) rotate(0deg)";
-            e.currentTarget.style.opacity = "1";
-          }
-        };
-
-        const goBack = () => { setMode("send"); setSelected(null); };
-
-        return (
-          <div
-            style={{
-              position:"fixed", inset:0, zIndex:9000,
-              background:"rgba(0,0,0,0.88)",
-              display:"flex", flexDirection:"column",
-              alignItems:"center", justifyContent:"center",
-              gap:20, padding:24,
-            }}
-            onClick={goBack}  /* click outside card → back */
-          >
-            {/* Swipeable card — stopPropagation so card clicks don't close */}
-            <div
-              onClick={e=>e.stopPropagation()}
-              style={{touchAction:"none",userSelect:"none",cursor:"grab"}}
-              onMouseDown={onPointerDown}
-              onMouseMove={onPointerMove}
-              onMouseUp={onPointerUp}
-              onMouseLeave={onPointerUp}
-              onTouchStart={onPointerDown}
-              onTouchMove={onPointerMove}
-              onTouchEnd={onPointerUp}
-            >
-              <FlippableCard card={selected} dispW={CARD_W}/>
-            </div>
-
-            {/* Hint — above card */}
-            <div onClick={e=>e.stopPropagation()} style={{
-              ...mono, fontSize:11, color:"#888", letterSpacing:2, textAlign:"center",
-              order:-1, marginBottom:4,
-            }}>
-              {loading ? "sending..." : "swipe the card to send"}
-            </div>
-            <div onClick={e=>e.stopPropagation()} style={{
-              ...mono, fontSize:8, color:"#333", letterSpacing:1, textAlign:"center",
-            }}>
-              tap outside to cancel
-            </div>
-
-            {error && <div onClick={e=>e.stopPropagation()} style={{...mono,fontSize:8,color:"#c84b31"}}>{error}</div>}
-          </div>
-        );
-      })()}
-
-      {/* SENT — show token */}
-      {mode === "sent" && (
-        <div style={{display:"flex",flexDirection:"column",gap:16,alignItems:"center",textAlign:"center"}}>
-          <div style={{...mono,fontSize:9,color:"#555",letterSpacing:1}}>TOKEN GENERATED</div>
-          <div style={{
-            ...mono, fontSize:28, letterSpacing:8, color:"#d0d0d0",
-            padding:"18px 28px", border:"1px solid #333", borderRadius:8,
-            background:"#080808", userSelect:"all",
-          }}>{token}</div>
-          <div style={{...mono,fontSize:9,color:"#444",lineHeight:1.7,maxWidth:280}}>
-            Share this token with the recipient.<br/>
-            It expires in <span style={{color:"#888"}}>7 days</span> and can only be used once.<br/>
-            <span style={{color:"#555"}}>The card has been removed from your collection.</span>
-          </div>
-          <div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"center"}}>
-            <button onClick={()=>navigator.clipboard?.writeText(token).then(()=>notify("Token copied!"))}
-              style={{...mono,fontSize:9,letterSpacing:1,padding:"8px 14px",background:"transparent",
-                border:"1px solid #333",borderRadius:5,color:"#888",cursor:"pointer"}}>
-              COPY TOKEN
-            </button>
-            <button onClick={()=>{
-              const link = `${window.location.origin}/claim/${token}`;
-              navigator.clipboard?.writeText(link).then(()=>notify("Link copied!"));
-            }} style={{...mono,fontSize:9,letterSpacing:1,padding:"8px 14px",background:"transparent",
-              border:"1px solid #333",borderRadius:5,color:"#888",cursor:"pointer"}}>
-              COPY LINK
-            </button>
-          </div>
-          <button onClick={()=>{setMode("menu");setToken("");setSelected(null);}}
-            style={{...mono,fontSize:8,color:"#444",background:"transparent",border:"none",cursor:"pointer",letterSpacing:1}}>
-            DONE
-          </button>
-        </div>
-      )}
-
-      {/* CLAIM */}
-      {mode === "claim" && (
-        <div style={{display:"flex",flexDirection:"column",gap:12}}>
-          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
-            <button onClick={()=>{setMode("menu");setError("");setClaimInput("");}}
-              style={{...mono,fontSize:8,color:"#555",background:"transparent",border:"none",cursor:"pointer"}}>
-              ← back
-            </button>
-            <div style={{...mono,fontSize:9,color:"#666",letterSpacing:1}}>ENTER CLAIM TOKEN</div>
-          </div>
-          <input
-            value={claimInput}
-            onChange={e=>setClaimInput(e.target.value.toUpperCase())}
-            placeholder="XXXXXXXX"
-            maxLength={8}
-            style={{
-              ...mono, fontSize:22, letterSpacing:6, textAlign:"center",
-              padding:"14px", background:"#080808", border:"1px solid #333",
-              borderRadius:6, color:"#d0d0d0", width:"100%", outline:"none",
-            }}
-          />
-          {error && <div style={{...mono,fontSize:8,color:"#c84b31",letterSpacing:.5}}>{error}</div>}
-          <button onClick={handleClaim} disabled={loading || claimInput.length < 6}
-            style={{
-              ...mono, fontSize:10, letterSpacing:2, padding:"12px",
-              background:"transparent",
-              border:`1px solid ${claimInput.length>=6?"#555":"#1a1a1a"}`,
-              borderRadius:5, color: claimInput.length>=6?"#bbb":"#333",
-              cursor: loading ? "wait" : "pointer",
-            }}>
-            {loading ? "CLAIMING..." : "CLAIM CARD"}
-          </button>
-        </div>
-      )}
-
-      {/* CLAIMED */}
-      {mode === "claimed" && claimedCard && (
-        <div style={{display:"flex",flexDirection:"column",gap:16,alignItems:"center",textAlign:"center"}}>
-          <div style={{...mono,fontSize:9,color:"#555",letterSpacing:1}}>CARD CLAIMED</div>
-          <div style={{width:160}}>
-            <FlippableCard card={{...claimedCard, count:1}} dispW={160}/>
-          </div>
-          <div style={{...mono,fontSize:10,color:RARITIES[claimedCard.rarity].accent}}>
-            {claimedCard.name} added to your collection
-          </div>
-          <button onClick={()=>{setMode("menu");setClaimedCard(null);setClaimInput("");}}
-            style={{...mono,fontSize:9,letterSpacing:1,padding:"8px 20px",background:"transparent",
-              border:"1px solid #333",borderRadius:5,color:"#888",cursor:"pointer"}}>
-            NICE
-          </button>
-        </div>
-      )}
     </div>
   );
 }

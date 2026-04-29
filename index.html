@@ -1,28 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-    <meta name="theme-color" content="#060606"/>
-    <meta name="apple-mobile-web-app-capable" content="yes"/>
-    <title>THE CABAL</title>
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzNjguODkgMzY4Ljg5Ij48ZGVmcz48c3R5bGU+LmNscy0xe2ZpbGw6IzAxMDIwMTt9LmNscy0ye2ZpbGw6I2ZmZjt9PC9zdHlsZT48L2RlZnM+PGcgaWQ9IkxpdmVsbG9fMiIgZGF0YS1uYW1lPSJMaXZlbGxvIDIiPjxnIGlkPSJMaXZlbGxvXzEtMiIgZGF0YS1uYW1lPSJMaXZlbGxvIDEiPjxyZWN0IGNsYXNzPSJjbHMtMSIgd2lkdGg9IjM2OC44OSIgaGVpZ2h0PSIzNjguODkiLz48cGF0aCBjbGFzcz0iY2xzLTIiIGQ9Ik0xNjYuMzksMTQ3LjMzaC0uMjhhMTIuNzcsMTIuNzcsMCwxLDAsLjI4LDBaIi8+PHBhdGggY2xhc3M9ImNscy0yIiBkPSJNMTI0Ljc4LDEzMS41NGwtNDksNTIuMzEsNDEuMDUsNDguMDZDMTU2LjkxLDI3OS41NSwyMTMuMzUsMjc4LjQ1LDI1MywyMjlsNDAuMDktNTAuMzktNDcuNjQtNDkuMjlDMjA4LjgyLDkyLjEzLDE2MS4zMSw5MywxMjQuNzgsMTMxLjU0Wm02OS4wNywxMDAuNzhoMGE0OC42MSw0OC42MSwwLDAsMS01Ni43LTM4Ljg2YzAtLjA5LDAtLjE3LDAtLjI2YTQ4Ljc0LDQ4Ljc0LDAsMSwxLDU2Ljc2LDM5LjEyWiIvPjwvZz48L2c+PC9zdmc+"/>
-    <link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzNjguODkgMzY4Ljg5Ij48ZGVmcz48c3R5bGU+LmNscy0xe2ZpbGw6IzAxMDIwMTt9LmNscy0ye2ZpbGw6I2ZmZjt9PC9zdHlsZT48L2RlZnM+PGcgaWQ9IkxpdmVsbG9fMiIgZGF0YS1uYW1lPSJMaXZlbGxvIDIiPjxnIGlkPSJMaXZlbGxvXzEtMiIgZGF0YS1uYW1lPSJMaXZlbGxvIDEiPjxyZWN0IGNsYXNzPSJjbHMtMSIgd2lkdGg9IjM2OC44OSIgaGVpZ2h0PSIzNjguODkiLz48cGF0aCBjbGFzcz0iY2xzLTIiIGQ9Ik0xNjYuMzksMTQ3LjMzaC0uMjhhMTIuNzcsMTIuNzcsMCwxLDAsLjI4LDBaIi8+PHBhdGggY2xhc3M9ImNscy0yIiBkPSJNMTI0Ljc4LDEzMS41NGwtNDksNTIuMzEsNDEuMDUsNDguMDZDMTU2LjkxLDI3OS41NSwyMTMuMzUsMjc4LjQ1LDI1MywyMjlsNDAuMDktNTAuMzktNDcuNjQtNDkuMjlDMjA4LjgyLDkyLjEzLDE2MS4zMSw5MywxMjQuNzgsMTMxLjU0Wm02OS4wNywxMDAuNzhoMGE0OC42MSw0OC42MSwwLDAsMS01Ni43LTM4Ljg2YzAtLjA5LDAtLjE3LDAtLjI2YTQ4Ljc0LDQ4Ljc0LDAsMSwxLDU2Ljc2LDM5LjEyWiIvPjwvZz48L2c+PC9zdmc+"/>
-    <link rel="preconnect" href="https://fonts.googleapis.com"/>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
-    <style>*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}html,body,#root{height:100%;background:#060606}body{overscroll-behavior:none;-webkit-tap-highlight-color:transparent}*{-webkit-font-smoothing:antialiased}</style>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>The Cabal</title>
+    <meta name="description" content="Collect Foundation NFT cards" />
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { background: #080808; }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&display=swap" rel="stylesheet" />
   </head>
-  <body><div id="root"></div><script>
-window.onerror = function(msg, src, line, col, err) {
-  document.body.style.background = '#000';
-  document.body.innerHTML = '<div style="color:#f88;font-family:monospace;padding:20px;font-size:11px;white-space:pre-wrap">' +
-    'CRASH line ' + line + ':' + col + '\n' + msg + '\n\n' + (err&&err.stack||'') + '</div>';
-};
-window.onunhandledrejection = function(e) {
-  document.body.style.background = '#000';
-  document.body.innerHTML = '<div style="color:#fa0;font-family:monospace;padding:20px;font-size:11px;white-space:pre-wrap">' +
-    'UNHANDLED PROMISE REJECTION:\n' + (e.reason?.stack || e.reason || String(e)) + '</div>';
-};
-</script>
-  <script type="module" src="/src/main.jsx"></script></body>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
 </html>
