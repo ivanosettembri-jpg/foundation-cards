@@ -12,5 +12,17 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
     <style>*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}html,body,#root{height:100%;background:#060606}body{overscroll-behavior:none;-webkit-tap-highlight-color:transparent}*{-webkit-font-smoothing:antialiased}</style>
   </head>
-  <body><div id="root"></div><script type="module" src="/src/main.jsx"></script></body>
+  <body><div id="root"></div><script>
+window.onerror = function(msg, src, line, col, err) {
+  document.body.style.background = '#000';
+  document.body.innerHTML = '<div style="color:#f88;font-family:monospace;padding:20px;font-size:11px;white-space:pre-wrap">' +
+    'CRASH line ' + line + ':' + col + '\n' + msg + '\n\n' + (err&&err.stack||'') + '</div>';
+};
+window.onunhandledrejection = function(e) {
+  document.body.style.background = '#000';
+  document.body.innerHTML = '<div style="color:#fa0;font-family:monospace;padding:20px;font-size:11px;white-space:pre-wrap">' +
+    'UNHANDLED PROMISE REJECTION:\n' + (e.reason?.stack || e.reason || String(e)) + '</div>';
+};
+</script>
+  <script type="module" src="/src/main.jsx"></script></body>
 </html>
