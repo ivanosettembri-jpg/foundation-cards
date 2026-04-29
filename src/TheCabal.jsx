@@ -855,8 +855,9 @@ function CardFace({ card, dispW, holoPos={x:0.5,y:0.5}, holoActive=false, allowT
         display:"flex", alignItems:"center", justifyContent:"space-between",
         padding:`0 ${fs(.04)}px`, zIndex:15,
       }}>
-        <span style={{fontFamily:"'DM Mono',monospace",fontSize:fs(.048),color:"#d0d0d0",fontWeight:500,letterSpacing:.5}}>networked.cards</span>
-        {serial && <span style={{fontFamily:"'DM Mono',monospace",fontSize:fs(.042),color:r.color+"99"}}>{`#${String(serial).padStart(3,"0")}`}</span>}
+        <span style={{fontFamily:"'DM Mono',monospace",fontSize:fs(.042),color:r.color+"99"}}>
+          {serial ? `#${String(serial).padStart(3,"0")}` : "·"}
+        </span>
         <span style={{fontFamily:"'DM Mono',monospace",fontSize:fs(.042),color:r.accent,letterSpacing:.5}}>{r.name.toUpperCase()}</span>
       </div>}
 
@@ -2380,18 +2381,15 @@ function TheCabalApp() {
                   /* ── Swipe stack — Take All BELOW ── */
                   <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:16}}>
                     {/* Heart fav button — top right of stack, discrete */}
-                    {revealCards.length > 0 && (() => {
-                      const topCard = revealCards[revealCards.length-1];
-                      return topCard ? (
-                        <div style={{alignSelf:"flex-end",marginBottom:-8,marginRight:4}}>
-                          <button onClick={()=>toggleFav(topCard.id)} style={{
-                            background:"transparent",border:"none",cursor:"pointer",
-                            fontSize:14,color:(st.favorites||[]).includes(topCard.id)?"#e74c3c":"#2a2a2a",
-                            transition:"color .15s",padding:"2px 6px",
-                          }}>♥</button>
-                        </div>
-                      ) : null;
-                    })()}
+                    {revealCards.length > 0 && (
+                      <div style={{alignSelf:"flex-end",marginBottom:-8,marginRight:4}}>
+                        <button onClick={()=>toggleFav(revealCards[0]?.id)} style={{
+                          background:"transparent",border:"none",cursor:"pointer",
+                          fontSize:16,color:(st.favorites||[]).includes(revealCards[0]?.id)?"#e74c3c":"#2a2a2a",
+                          transition:"color .15s",padding:"2px 8px",
+                        }}>♥</button>
+                      </div>
+                    )}
                     <SwipeableCardStack
                       cards={revealCards.map(c => rarityUpgrades[c.id] ? {...c, rarity: rarityUpgrades[c.id].rarity} : c)}
                       onComplete={handleStackComplete}
@@ -2648,7 +2646,7 @@ function CollectionView({ unique, notify, favorites, onToggleFav }) {
     return m;
   }, [unique]);
 
-  // When search/filter active, show only matching collected cards
+  // When search or favorites active, show only matching collected cards
   const isFiltering = search.trim() !== "" || showFavOnly;
 
   const filteredCollected = useMemo(() => {
@@ -2717,7 +2715,7 @@ function CollectionView({ unique, notify, favorites, onToggleFav }) {
           : <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:10}}>
               {[...unique].sort((a,b) => {
                 const rd = RARITY_ORDER.indexOf(a.rarity) - RARITY_ORDER.indexOf(b.rarity);
-                if (rd !== 0) return sortDir === "desc" ? rd : -rd;
+                if (rd !== 0) return rd;
                 return a.name.localeCompare(b.name);
               }).map(card => (
                 <LazyCard key={card._uid || card.id} card={card} dispW={CARD_W} notify={notify} count={card.count} onCardClick={setModalCard} isFav={favorites.has(card.id)} onToggleFav={onToggleFav}/>
