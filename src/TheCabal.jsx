@@ -29,17 +29,25 @@ async function getAlchemyThumb(collection, tokenId) {
 }
 
 function CardImage({ card, style }) {
-  const [src, setSrc] = React.useState(
-    card.image_cid ? `https://w3s.link/ipfs/${card.image_cid}/nft.png` : null
-  );
+  const [src, setSrc] = React.useState(null);
   const [errStep, setErrStep] = React.useState(0);
 
   React.useEffect(() => {
-    if (!card.collection || !card.token_id) return;
+    if (!card.image_cid) return;
     let cancelled = false;
-    getAlchemyThumb(card.collection, card.token_id).then(url => {
-      if (!cancelled && url) setSrc(url);
-    });
+    // Try Alchemy first (handles both images and videos via thumbnailUrl)
+    if (card.collection && card.token_id) {
+      getAlchemyThumb(card.collection, card.token_id).then(url => {
+        if (cancelled) return;
+        if (url) { setSrc(url); return; }
+        // Alchemy had nothing — fall back to direct IPFS
+        setSrc(`https://w3s.link/ipfs/${card.image_cid}/nft.png`);
+      }).catch(() => {
+        if (!cancelled) setSrc(`https://w3s.link/ipfs/${card.image_cid}/nft.png`);
+      });
+    } else {
+      setSrc(`https://w3s.link/ipfs/${card.image_cid}/nft.png`);
+    }
     return () => { cancelled = true; };
   }, [card.id]);
 
@@ -1800,6 +1808,7 @@ async function loadFoundationPool(onProgress) {
       image_cid: r.image_cid,
       creator:  r.creator,
       collection: r.collection,
+      token_id: r.token_id,
     };
   });
 
@@ -1899,6 +1908,7 @@ function TheCabalApp() {
           image_cid: r.image_cid,
           creator:  r.creator,
           collection: r.collection,
+          token_id: r.token_id,
         };
       });
       const seen = new Set();
