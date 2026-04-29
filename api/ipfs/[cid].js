@@ -7,7 +7,8 @@ export default async function handler(req, res) {
 
   const contract = req.query.contract;
   const tokenId  = req.query.tokenId;
-  const apiKey   = process.env.ALCHEMY_API_KEY || 'l40Adj6lx9enV3reVqZMr';
+  const apiKey   = process.env.ALCHEMY_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: 'Missing API key' });
 
   // If we have contract+tokenId use Alchemy NFT API
   if (contract && tokenId) {
