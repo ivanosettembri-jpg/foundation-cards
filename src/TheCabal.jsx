@@ -15,8 +15,10 @@ const _nftMeta = {};
 const _nftMetaListeners = new Set();
 function _emitNFTMeta(id) { _nftMetaListeners.forEach(cb => cb(id)); }
 function useNFTMeta(cardId) {
-  const [meta, setMeta] = React.useState(_nftMeta[cardId] || null);
+  const [meta, setMeta] = React.useState(() => (cardId ? _nftMeta[cardId] || null : null));
   React.useEffect(() => {
+    if (!cardId) return;
+    // Read immediately (pre-fetch may have already populated cache)
     setMeta(_nftMeta[cardId] || null);
     const cb = id => { if (id === cardId) setMeta(_nftMeta[cardId] || null); };
     _nftMetaListeners.add(cb);
@@ -25,10 +27,43 @@ function useNFTMeta(cardId) {
   return meta;
 }
 
+const _alchemyPromises = {}; // deduplication: multiple callers share one fetch
+
+// ── Sale price → rarity upgrade ──────────────────────────────────────────
+// Fetches historical sale data from Alchemy. Updates rarity if sold above thresholds.
+// LR ≥ 1 ETH, UR ≥ 0.1 ETH, R ≥ 0.01 ETH. Runs silently in background.
+const _saleFetched = new Set();
+async function fetchSaleRarity(card, onRarityUpdate) {
+  if (!card.collection || !card.token_id) return;
+  const key = `sale_${card.collection}_${card.token_id}`;
+  if (_saleFetched.has(key)) return;
+  _saleFetched.add(key);
+  try {
+    const url = `https://eth-mainnet.g.alchemy.com/nft/v3/${ALCHEMY_KEY}/getNFTSales` +
+      `?contractAddress=${card.collection}&tokenId=${card.token_id}&order=desc&limit=5`;
+    const r = await fetch(url);
+    if (!r.ok) return;
+    const data = await r.json();
+    const sales = data?.nftSales || [];
+    if (!sales.length) return;
+    // Find highest sale in ETH (sellerFee is in wei)
+    const maxWei = Math.max(...sales.map(s => parseInt(s.sellerFee?.amount || s.royaltyFee?.amount || 0)));
+    const maxEth = maxWei / 1e18;
+    const newRarity =
+      maxEth >= 1   ? "LR" :
+      maxEth >= 0.1 ? "UR" :
+      maxEth >= 0.01? "R"  : null;
+    if (newRarity && RARITY_ORDER.indexOf(newRarity) < RARITY_ORDER.indexOf(card.rarity)) {
+      onRarityUpdate(card.id, newRarity, maxEth);
+    }
+  } catch {}
+}
+
 async function getAlchemyThumb(collection, tokenId) {
   const key = `${collection}_${tokenId}`;
   if (_alchemyCache[key] !== undefined) return _alchemyCache[key];
-  _alchemyCache[key] = null; // mark as fetching
+  if (_alchemyPromises[key]) return _alchemyPromises[key]; // share in-flight fetch
+  _alchemyPromises[key] = (async () => {
   try {
     const r = await fetch(
       `https://eth-mainnet.g.alchemy.com/nft/v3/${ALCHEMY_KEY}/getNFTMetadata` +
@@ -39,8 +74,19 @@ async function getAlchemyThumb(collection, tokenId) {
     // thumbnailUrl works for images AND videos (extracts first frame)
     const url = data?.image?.thumbnailUrl || data?.image?.cachedUrl || data?.image?.originalUrl;
     _alchemyCache[key] = url || null;
+    // Store real name and collection for card display
+    if (data?.name || data?.contract?.name) {
+      _nftMeta[key] = {
+        name: data?.name || null,
+        collection: data?.contract?.name || null,
+        symbol: data?.contract?.symbol || null,
+      };
+      _emitNFTMeta(key);
+    }
     return _alchemyCache[key];
-  } catch { return null; }
+  } catch { _alchemyCache[key] = null; return null; }
+  })();
+  return _alchemyPromises[key];
 }
 
 function CardImage({ card, style }) {
@@ -575,7 +621,7 @@ function NewBadge({ size = "md" }) {
       position:"absolute",
       bottom: s ? 28 : 32,
       right: s ? 4 : 6,
-      zIndex: 10,
+      zIndex: 20,
       background:"#f472b6",
       color:"#000",
       fontFamily:"'DM Mono',monospace",
@@ -1946,6 +1992,7 @@ function TheCabalApp() {
   // phase: "idle" | "shaking" | "burst" | "revealing" | "bulk"
   const [phase,setPhase]     = useState("idle");
   const [loadMsg,setLoadMsg]   = useState("");
+  const [rarityUpgrades,setRarityUpgrades] = useState({}); // cardId → {rarity, priceEth}
   const packColorIdx = (st.totalOpened ?? 0) % 4;
   const [revealCards,setRC]  = useState([]);
   const [revealDone,setRD]   = useState(false);
@@ -2344,7 +2391,7 @@ function TheCabalApp() {
                   /* ── Swipe stack — Take All BELOW ── */
                   <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:16}}>
                     <SwipeableCardStack
-                      cards={revealCards}
+                      cards={revealCards.map(c => rarityUpgrades[c.id] ? {...c, rarity: rarityUpgrades[c.id].rarity} : c)}
                       onComplete={handleStackComplete}
                       cardWidth={200}
                       ownedIds={ownedIds}
