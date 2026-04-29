@@ -212,7 +212,7 @@ const LUCKY_PACK_BG_B64     = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAA
 /* Icon-only logo (the eye/lens mark) — used on pack front and card back */
 const LOGO_ICON_B64 = "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA5Ny42OCA3NC4xNCI+PGRlZnM+PHN0eWxlPi5jbHMtMXtmaWxsOiNmZmY7fTwvc3R5bGU+PC9kZWZzPjxnIGlkPSJMaXZlbGxvXzIiIGRhdGEtbmFtZT0iTGl2ZWxsbyAyIj48ZyBpZD0iTGl2ZWxsb18xLTIiIGRhdGEtbmFtZT0iTGl2ZWxsbyAxIj48cGF0aCBjbGFzcz0iY2xzLTEiIGQ9Ik03Ni4zMSwxMi4yOUM1OS44Mi00LjQ0LDM4LjQ2LTQuMDcsMjIsMTMuMjhMMCwzNi44LDE4LjQ2LDU4LjQxYzE4LDIxLjQyLDQzLjQsMjAuOTMsNjEuMjQtMS4zbDE4LTIyLjYtLjMyLS44NlpNNTMuMDksNTguNTloMEEyMS44NiwyMS44NiwwLDAsMSwyNy42LDQxLjEybDAtLjEyQTIxLjkyLDIxLjkyLDAsMSwxLDUzLjA5LDU4LjU5WiIvPjxwYXRoIGNsYXNzPSJjbHMtMSIgZD0iTTQwLjc1LDIwLjM4aC0uMTNhNS43NSw1Ljc1LDAsMSwwLC4xMywwWiIvPjwvZz48L2c+PC9zdmc+";
 // LOGO_B64_OLD = "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0MzAuMSA2MC4zIj48ZGVmcz48c3R5bGU+LmNscy0xe2ZpbGw6I2ZmZjt9PC9zdHlsZT48L2RlZnM+PGcgaWQ9IkxpdmVsbG9fMiIgZGF0YS1uYW1lPSJMaXZlbGxvIDIiPjxnIGlkPSJMaXZlbGxvXzEtMiIgZGF0YS1uYW1lPSJMaXZlbGxvIDEiPjxwYXRoIGNsYXNzPSJjbHMtMSIgZD0iTTI4Mi40LDBoMjYuNzJWNi41NkgzMjIuNlYzMy40N2g2LjYxVjQ2Ljk0aC02LjU1djYuNjlIMzE2djYuNjNIMjgyLjRabTEzLjQ5LDMzLjU2VjQ2LjgzaDE5Ljg1VjMzLjU2Wm0tLjA3LTYuODhoMTMuNFYyMGg2LjU1VjEzLjVIMjk1LjgyWiIvPjxwYXRoIGNsYXNzPSJjbHMtMSIgZD0iTTExNC4yNiwxMy4zVjI2LjdIMTQxdjYuNzVIMTE0LjM2VjQ2LjkyaDMzLjM3VjYwLjI2SDEwMC44OFYwSDE0MVYxMy4zWiIvPjxwYXRoIGNsYXNzPSJjbHMtMSIgZD0iTTQ3LjEsMEg2MC4zN1YyNi42NUg4MC41Vi4wN0g5My45MVY2MC4yOUg4MC42M1YzMy42Nkg2MC41VjYwLjI1SDQ3LjFaIi8+PHBhdGggY2xhc3M9ImNscy0xIiBkPSJNMzQ5LjQzLDBoMTMuNDhWNi41N2g2LjY5VjI2LjY5aDYuNzZ2MjAuMkgzODNWNjAuMjhIMzY5Ljc0VjQ3LjExaC0yMC4ydjYuNTNoLTYuNjlWNjAuM0gzMjkuNDlWNTMuNzNIMzM2VjMzLjZoNi43NlYxMy40MWg2LjY5Wm0xMy40MywyNi45MWgtNi41djYuNDZoNi41WiIvPjxwYXRoIGNsYXNzPSJjbHMtMSIgZD0iTTI0Miw1My43aC02LjY5djYuNTlIMjIxLjg2VjUzLjc0aDYuNjFWMzMuNTVoNi42OVYxMy40Mmg2LjY5VjBoMTMuNDhWMTMuMjdoNi43NlYyNi43NWg2LjY5VjQ2Ljg3aDYuNjN2MTMuNEgyNjIuMThWNDcuMTJIMjQyWk0yNDIsMzMuMzhoMTMuMlYyNi45SDI0MloiLz48cGF0aCBjbGFzcz0iY2xzLTEiIGQ9Ik0yMjEuNjksNDAuMzZ2Ni41NmgtNi41N1Y1My42aC02LjY5djYuNjdIMTg4LjE3VjUzLjcySDE3NC43NlYzMy42MWgtNi42M1YyNi44NWg2LjQ5VjYuNzRoMTMuNDdWMGgxMy40OFY2LjU4SDIxNXY2LjY4aDYuNjdWMjBIMjA4LjM2VjEzLjVIMTg4LjIzVjIwaC02LjY3VjQwLjE4aDYuNTN2Ni42NmgyMC4xOVY0MC4zNloiLz48cGF0aCBjbGFzcz0iY2xzLTEiIGQ9Ik0xMy40MiwxMy4zM0gwVi4wNkg0MC4xMlYxMy4zNEgyNi44N1Y2MC4yNkgxMy40MloiLz48cGF0aCBjbGFzcz0iY2xzLTEiIGQ9Ik00MDMuMzMuMDVWNDYuOTRINDMwLjFWNjAuMjZIMzkwVi4wNVoiLz48L2c+PC9nPjwvc3ZnPg=="; // OLD LOGO BACKUP
-const LOGO_B64 = "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NzguMjggMzkzLjYyIj48ZGVmcz48c3R5bGU+LmNscy0xe2ZpbGw6I2ZmZjt9PC9zdHlsZT48L2RlZnM+PGcgaWQ9IkxpdmVsbG9fMiIgZGF0YS1uYW1lPSJMaXZlbGxvIDIiPjxnIGlkPSJMaXZlbGxvXzEtMiIgZGF0YS1uYW1lPSJMaXZlbGxvIDEiPjxwYXRoIGNsYXNzPSJjbHMtMSIgZD0iTTE4NC45NCwzNTQuNzFWMzc5LjlsLTI1LjcxLDIuMjVWMzA0LjY3bDI1LjUyLTIuMjRWMjI0LjgxbDUyLjA2LTQuNTV2NTEuNDdsMjUuODgtMi4yN1YzNDcuMmwyNS44Ny0yLjI2VjIxNS43MWwxMDQtOS4xVjIzMmwyNS44NS0yLjI2VjM1OS41OEwyMzcsMzc1LjQ2di0yNS4zWm0xODEuNDktNjguNDdWMjM1bC0yNS4zNiwyLjIydjUxLjI4Wm0yNi4xLDI0LjMxTDM0MS4yMiwzMTV2MjUuMzNsNTEuMzEtNC40OVptLTE4MS4zLTEwLjIydjI1LjMxbDI1LjM1LTIuMjFWMjk4LjExWiIvPjxwYXRoIGNsYXNzPSJjbHMtMSIgZD0iTTYyNi43OCwxODYuMTRWMzE1LjUybDUxLjUtNC41MXYyNS44M0w1MjIuODYsMzUwLjQzVjMyNS4xNmwtNTIuMDUsNC41NXYyNS4zNWwtMjUuNzEsMi4yNVYyNzkuNjhsMjUuNDctMi4yM1YxOTkuODJsNTIuMDYtNC41NnY1MS40M2wyNS44OC0yLjI2djc3Ljc1bDI1Ljg3LTIuMjZWMTkwLjcyWm0tMTA0LjI5LDg3TDQ5NywyNzUuMzNWMzAwLjdsMjUuNDctMi4yM1oiLz48cGF0aCBjbGFzcz0iY2xzLTEiIGQ9Ik03OS44MiwxMTIuMjhsLTMxLjksMi43OXY3OS41OWwtMTYsMS40MVYxMTYuNTZMMCwxMTkuMzV2LTE2TDExMS42Miw5My42djQ3LjUybDMxLjktMi43OVY5MC44OGwxNS45Mi0xLjR2OTUuNDVsLTE1LjcsMS4zN1YxNTQuNzdsLTMxLjksMi43OVYxODlsLTMyLDIuOFoiLz48cGF0aCBjbGFzcz0iY2xzLTEiIGQ9Ik0yMzkuNDQsMTYydjE2bC02My41OSw1LjU2Vjg4bDYzLjU2LTUuNTZWOTguMDhsLTQ3LjU3LDQuMTZ2MzJsNDcuNTEtNC4xNXYxNmwtNDcuNTYsNC4xNnYxNS45MVoiLz48cGF0aCBjbGFzcz0iY2xzLTEiIGQ9Ik01NC44NywyNjEuNzV2MjUuOWwtMjUuNiwyLjI0djUxLjkzbDI1LjUtMi4yM3YyNi4yTDEwNywzNjEuMjJsLS4xNC0uMTN2MjUuNzJMMjksMzkzLjYyVjM2OC4wOEwzLjMxLDM3MC4zM1YyNjYuMzlMNTUsMjYxLjg3WiIvPjxwYXRoIGNsYXNzPSJjbHMtMSIgZD0iTTU1LDI2MS44N1YyMzYuMTRsNTEuNzMtNC41M1YyNTdsMjUuODUtMi4yNnYyNmwtNTEuNDEsNC40OVYyNTkuNDRsLTI2LjMxLDIuMzFaIi8+PHBhdGggY2xhc3M9ImNscy0xIiBkPSJNMTA3LDM2MS4yMlYzMzUuNTFsMjUuNjEtMi4yNHYyNS41N2wtMjUuNzUsMi4yNVoiLz48L2c+PC9nPjwvc3ZnPg==";
+const LOGO_B64 = "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTMuMjYgODAuNzQiPjxkZWZzPjxzdHlsZT4uY2xzLTF7ZmlsbDojZmZmO308L3N0eWxlPjwvZGVmcz48ZyBpZD0iTGl2ZWxsb18yIiBkYXRhLW5hbWU9IkxpdmVsbG8gMiI+PGcgaWQ9IkxpdmVsbG9fMS0yIiBkYXRhLW5hbWU9IkxpdmVsbG8gMSI+PHBhdGggY2xhc3M9ImNscy0xIiBkPSJNMTUuOTEsMjcuOTRWNDQuMDVIOC40NFYxNi4yMWg3bC4xMyw3aC0uNDVhMTEuNDIsMTEuNDIsMCwwLDEsMy4zMi01LjM5LDguNTgsOC41OCwwLDAsMSw1Ljc3LTEuOTEsOS44LDkuOCwwLDAsMSw1LDEuMjYsOC40Nyw4LjQ3LDAsMCwxLDMuMzQsMy42MSwxMi4zNiwxMi4zNiwwLDAsMSwxLjE4LDUuNjJ2MTcuN0gyNi4zNFYyNy42NEE1LjgzLDUuODMsMCwwLDAsMjUsMjMuNThhNC43NCw0Ljc0LDAsMCwwLTMuNy0xLjQ3LDUuNjIsNS42MiwwLDAsMC0yLjguNjksNC43MSw0LjcxLDAsMCwwLTEuOTIsMkE2LjY1LDYuNjUsMCwwLDAsMTUuOTEsMjcuOTRaIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtOC40NCAtNi45NSkiLz48cGF0aCBjbGFzcz0iY2xzLTEiIGQ9Ik01MS43NCw0NC42YTE0LjcxLDE0LjcxLDAsMCwxLTcuMzQtMS43NCwxMS43OCwxMS43OCwwLDAsMS00Ljc1LTVBMTYuNDcsMTYuNDcsMCwwLDEsMzgsMzAuMjhhMTYuMzYsMTYuMzYsMCwwLDEsMS42NC03LjU0LDEyLjI2LDEyLjI2LDAsMCwxLDQuNjYtNS4wNiwxMy40MywxMy40MywwLDAsMSw3LjA3LTEuODIsMTQuNiwxNC42LDAsMCwxLDUuMS44NywxMS42OSwxMS42OSwwLDAsMSw0LjE2LDIuNjMsMTIsMTIsMCwwLDEsMi44LDQuNCwxNy4yMiwxNy4yMiwwLDAsMSwxLDYuMjJ2Mi4wOUg0MS4wNlYyNy4zOUg2MC43OEw1Ny4zLDI4LjY0YTkuOTQsOS45NCwwLDAsMC0uNjYtMy43OCw1LjQxLDUuNDEsMCwwLDAtMi0yLjQ5LDUuNzEsNS43MSwwLDAsMC0zLjIzLS44OCw1Ljg2LDUuODYsMCwwLDAtMy4zLjksNS42Miw1LjYyLDAsMCwwLTIsMi40Myw4LjM5LDguMzksMCwwLDAtLjcsMy40OXYzLjMyYTkuMTUsOS4xNSwwLDAsMCwuODEsNC4wNiw1LjYsNS42LDAsMCwwLDIuMjcsMi40Niw2Ljc3LDYuNzcsMCwwLDAsMy40LjgyLDcuMjIsNy4yMiwwLDAsMCwyLjM5LS4zNyw1LDUsMCwwLDAsMS44My0xLjExLDQuODIsNC44MiwwLDAsMCwxLjE2LTEuOEw2NCwzN2E5Ljc0LDkuNzQsMCwwLDEtMi4zNCw0LDExLjE4LDExLjE4LDAsMCwxLTQuMTcsMi42N0ExNi4yNywxNi4yNywwLDAsMSw1MS43NCw0NC42WiIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTguNDQgLTYuOTUpIi8+PHBhdGggY2xhc3M9ImNscy0xIiBkPSJNODIuMzUsMTYuMjF2NS43SDY1Ljg0di01LjdaTTY5LjY3LDkuNTloNy40N1YzNS45MWEyLjc5LDIuNzksMCwwLDAsLjU5LDIsMi41MywyLjUzLDAsMCwwLDIsLjY0LDkuNzMsOS43MywwLDAsMCwxLjItLjExcS43Ny0uMTIsMS4xNy0uMjFsMS4wNyw1LjZhMTQuODEsMTQuODEsMCwwLDEtMi40OC41MiwxOS4zOSwxOS4zOSwwLDAsMS0yLjM1LjE1cS00LjE5LDAtNi40LTJhNy41NSw3LjU1LDAsMCwxLTIuMjItNS44NVoiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC04LjQ0IC02Ljk1KSIvPjxwYXRoIGNsYXNzPSJjbHMtMSIgZD0iTTkyLjczLDQ0LjA1LDg0LjUyLDE2LjIxaDcuODRMOTQuNzgsMjYuNXEuNjEsMi43NiwxLjM0LDZ0MS4zMiw3LjE4aC0uODVxLjY2LTMuODIsMS40Mi03LjExdDEuNDUtNi4wOEwxMDIsMTYuMjFoNi44N2wyLjQ5LDEwLjI5Yy40MiwxLjg3Ljg4LDMuODksMS40LDYuMDZzMSw0LjU0LDEuNDQsNy4xM2gtLjg1cS42LTMuODYsMS4yOS03LjExYy40NS0yLjE2LjktNC4xOSwxLjMzLTYuMDhsMi40MS0xMC4yOWg4bC04LjI3LDI3Ljg0aC03LjU5bC0zLjA5LTEwLjczcS0uNDUtMS42Mi0uOS0zLjU3dC0uODctNGMtLjI4LTEuMzUtLjU3LTIuNjItLjg3LTMuOGgxLjMyYy0uMjksMS4xOC0uNTcsMi40NS0uODYsMy44cy0uNTksMi42OS0uODksNC0uNTksMi41LS44OSwzLjU2bC0zLjA5LDEwLjczWiIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTguNDQgLTYuOTUpIi8+PHBhdGggY2xhc3M9ImNscy0xIiBkPSJNMTQwLjgsNDQuNmExNCwxNCwwLDAsMS03LjI1LTEuODEsMTIuMTMsMTIuMTMsMCwwLDEtNC43Mi01LDE2LjI1LDE2LjI1LDAsMCwxLTEuNjUtNy41LDE2LjM5LDE2LjM5LDAsMCwxLDEuNjUtNy41NiwxMi4xMywxMi4xMywwLDAsMSw0LjcyLTUsMTUuNDUsMTUuNDUsMCwwLDEsMTQuNTEsMCwxMi4xNCwxMi4xNCwwLDAsMSw0LjcsNSwxNi4yNywxNi4yNywwLDAsMSwxLjY2LDcuNTYsMTYuMTMsMTYuMTMsMCwwLDEtMS42Niw3LjUsMTIuMTQsMTIuMTQsMCwwLDEtNC43LDVBMTQsMTQsMCwwLDEsMTQwLjgsNDQuNlptMC01Ljg4YTUuMDUsNS4wNSwwLDAsMCwzLjMzLTEuMTEsNi42Miw2LjYyLDAsMCwwLDItMywxMy4xNSwxMy4xNSwwLDAsMCwuNjctNC4zNSwxMy4xNywxMy4xNywwLDAsMC0uNjctNC4zOCw2LjU2LDYuNTYsMCwwLDAtMi0zLDUuNTksNS41OSwwLDAsMC02LjY2LDAsNi42LDYuNiwwLDAsMC0yLDMsMTMuMTYsMTMuMTYsMCwwLDAtLjY4LDQuMzgsMTMuMTUsMTMuMTUsMCwwLDAsLjY4LDQuMzUsNi42Nyw2LjY3LDAsMCwwLDIsM0E1LDUsMCwwLDAsMTQwLjgsMzguNzJaIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtOC40NCAtNi45NSkiLz48cGF0aCBjbGFzcz0iY2xzLTEiIGQ9Ik0xNTguNiw0NC4wNVYxNi4yMWg3LjIydjQuODZoLjNhNy4yNCw3LjI0LDAsMCwxLDIuNTgtMy45MSw2Ljg1LDYuODUsMCwwLDEsNC4xNS0xLjMyYy4zOCwwLC43OSwwLDEuMjQuMDZhNi44MSw2LjgxLDAsMCwxLDEuMTcuMTl2Ni42N2E2LjE1LDYuMTUsMCwwLDAtMS40NC0uMjcsMTYuMjgsMTYuMjgsMCwwLDAtMS44LS4xLDYuNCw2LjQsMCwwLDAtMy4wNi43Myw1LjM2LDUuMzYsMCwwLDAtMi4xMywyLDYuMDUsNi4wNSwwLDAsMC0uNzYsMy4wNVY0NC4wNVoiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC04LjQ0IC02Ljk1KSIvPjxwYXRoIGNsYXNzPSJjbHMtMSIgZD0iTTE3OS4xNSw0NC4wNVY3aDcuNDd2MzcuMVptNi43Ny04LjE0di05SDE4N2w5LjExLTEwLjcxaDguNjVsLTEyLDE0SDE5MVptMTAuNjEsOC4xNC04LjM3LTEyLjIsNS01LjMsMTIuMTUsMTcuNVoiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC04LjQ0IC02Ljk1KSIvPjxwYXRoIGNsYXNzPSJjbHMtMSIgZD0iTTIxOS4xNCw0NC42YTE0LjY4LDE0LjY4LDAsMCwxLTcuMzQtMS43NCwxMS43OCwxMS43OCwwLDAsMS00Ljc1LTUsMTYuNDcsMTYuNDcsMCwwLDEtMS42NS03LjYyQTE2LjM2LDE2LjM2LDAsMCwxLDIwNywyMi43NGExMi4yNiwxMi4yNiwwLDAsMSw0LjY2LTUuMDYsMTMuNDMsMTMuNDMsMCwwLDEsNy4wNy0xLjgyLDE0LjYsMTQuNiwwLDAsMSw1LjEuODdBMTEuNjksMTEuNjksMCwwLDEsMjI4LDE5LjM2YTEyLDEyLDAsMCwxLDIuOCw0LjQsMTcuMjIsMTcuMjIsMCwwLDEsMSw2LjIydjIuMDlIMjA4LjQ2VjI3LjM5aDE5LjcybC0zLjQ4LDEuMjVhMTAuMTMsMTAuMTMsMCwwLDAtLjY2LTMuNzgsNS40MSw1LjQxLDAsMCwwLTItMi40OSw1LjcxLDUuNzEsMCwwLDAtMy4yMy0uODgsNS44Niw1Ljg2LDAsMCwwLTMuMy45LDUuNTUsNS41NSwwLDAsMC0yLDIuNDMsOC4yNCw4LjI0LDAsMCwwLS43LDMuNDl2My4zMmE5LjE1LDkuMTUsMCwwLDAsLjgxLDQuMDYsNS42LDUuNiwwLDAsMCwyLjI3LDIuNDYsNi43Nyw2Ljc3LDAsMCwwLDMuNC44Miw3LjIyLDcuMjIsMCwwLDAsMi4zOS0uMzcsNSw1LDAsMCwwLDEuODMtMS4xMSw1LDUsMCwwLDAsMS4xNi0xLjhMMjMxLjQyLDM3YTkuNzQsOS43NCwwLDAsMS0yLjM0LDQsMTEuMTgsMTEuMTgsMCwwLDEtNC4xNywyLjY3QTE2LjI3LDE2LjI3LDAsMCwxLDIxOS4xNCw0NC42WiIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTguNDQgLTYuOTUpIi8+PHBhdGggY2xhc3M9ImNscy0xIiBkPSJNMjQ2LjA5LDQ0LjUzYTEwLjQ4LDEwLjQ4LDAsMCwxLTUuNzctMS42NkExMS4xOSwxMS4xOSwwLDAsMSwyMzYuMjUsMzhhMTguNTEsMTguNTEsMCwwLDEtMS40OS03LjgzLDE4LjEzLDE4LjEzLDAsMCwxLDEuNTQtNy45NCwxMS4xMywxMS4xMywwLDAsMSw0LjExLTQuNzgsMTAuNDMsMTAuNDMsMCwwLDEsNS42NS0xLjYsOC42OSw4LjY5LDAsMCwxLDMuOTQuOCw4LDgsMCwwLDEsMi41NCwyQTkuNTMsOS41MywwLDAsMSwyNTQsMjAuODloLjI1VjdoNy40N3YzNy4xaC03LjM1VjM5LjU5SDI1NGE5LDksMCwwLDEtMS40OCwyLjI2LDguMSw4LjEsMCwwLDEtMi41NSwxLjlBOC42NSw4LjY1LDAsMCwxLDI0Ni4wOSw0NC41M1ptMi4zMS02YTUuMTEsNS4xMSwwLDAsMCwzLjI0LTEsNi4zNSw2LjM1LDAsMCwwLDItMi45MywxMi40OCwxMi40OCwwLDAsMCwuNy00LjM5LDEyLjYyLDEyLjYyLDAsMCwwLS42OS00LjQsNi4yNSw2LjI1LDAsMCwwLTItMi44OSw1LjIxLDUuMjEsMCwwLDAtMy4yNy0xLDUuMTMsNS4xMywwLDAsMC0zLjMsMS4wNyw2LjUsNi41LDAsMCwwLTIsMi45NCwxMi42MywxMi42MywwLDAsMC0uNjcsNC4zMSwxMi42MiwxMi42MiwwLDAsMCwuNjgsNC4zMyw2LjU1LDYuNTUsMCwwLDAsMiwzQTUsNSwwLDAsMCwyNDguNCwzOC41MloiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC04LjQ0IC02Ljk1KSIvPjxwYXRoIGNsYXNzPSJjbHMtMSIgZD0iTTE0OS42OSw4Ny4zMmEyLjY5LDIuNjksMCwwLDEtMS45MS0uNzVBMi40OSwyLjQ5LDAsMCwxLDE0Nyw4NC43YTIuNDQsMi40NCwwLDAsMSwuNzktMS44NCwyLjc4LDIuNzgsMCwwLDEsMy44MiwwLDIuNDQsMi40NCwwLDAsMSwuNzksMS44NCwyLjQ5LDIuNDksMCwwLDEtLjc5LDEuODdBMi42OSwyLjY5LDAsMCwxLDE0OS42OSw4Ny4zMloiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC04LjQ0IC02Ljk1KSIvPjxwYXRoIGNsYXNzPSJjbHMtMSIgZD0iTTE3MC44Niw4Ny42OGE4LjMyLDguMzIsMCwwLDEtNC4zLTEuMTEsOCw4LDAsMCwxLTMtMy4yMiwxMS44MywxMS44MywwLDAsMSwwLTEwLDcuODgsNy44OCwwLDAsMSwzLTMuMjJBOC40Myw4LjQzLDAsMCwxLDE3MC44Niw2OWE4LDgsMCwwLDEsNS4yOSwxLjY2LDcuNDEsNy40MSwwLDAsMSwyLjUyLDQuNDNoLTMuMWE0LjI5LDQuMjksMCwwLDAtMS42NS0yLjM2LDUuMTcsNS4xNywwLDAsMC0zLjEtLjg4LDUsNSwwLDAsMC0yLjU5LjcyLDUuMjEsNS4yMSwwLDAsMC0yLDIuMTYsNy44MSw3LjgxLDAsMCwwLS43NiwzLjYzLDcuOTQsNy45NCwwLDAsMCwuNzYsMy42Niw1LjIsNS4yLDAsMCwwLDIsMi4xOEE1LjUsNS41LDAsMCwwLDE3NCw4NGE0LjQ5LDQuNDksMCwwLDAsMS42LTIuMzhoMy4xYTcuNDcsNy40NywwLDAsMS03LjgxLDYuMDhaIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtOC40NCAtNi45NSkiLz48cGF0aCBjbGFzcz0iY2xzLTEiIGQ9Ik0xODkuOTQsODcuNjhhNy40NCw3LjQ0LDAsMCwxLTMuNTMtLjc1LDUuMDUsNS4wNSwwLDAsMS0yLjA5LTIsNS40OSw1LjQ5LDAsMCwxLS42OC0yLjcyLDQuNzcsNC43NywwLDAsMSwyLTQuMTZBOS4wOCw5LjA4LDAsMCwxLDE5MSw3Ni42M2g0Ljl2LS4zNnEwLTQuNjgtNC4yOS00LjY4YTUuMiw1LjIsMCwwLDAtMi45Ljc2LDMuNDgsMy40OCwwLDAsMC0xLjQ5LDIuMzdoLTMuMWE1LjgsNS44LDAsMCwxLDEuMjEtMy4wOSw2LjQ0LDYuNDQsMCwwLDEsMi42NS0yLDkuMTgsOS4xOCwwLDAsMSwzLjYzLS42OXEzLjgyLDAsNS41NiwyYTcuNzUsNy43NSwwLDAsMSwxLjc1LDUuMzF2MTFoLTIuNTlsLS4yNS0yLjc3aC0uMjVhOCw4LDAsMCwxLTIuMTEsMi4yNUE2LjMxLDYuMzEsMCwwLDEsMTg5Ljk0LDg3LjY4Wm0uNTQtMi42NmE1LjA2LDUuMDYsMCwwLDAsMi45My0uODNBNS4zMiw1LjMyLDAsMCwwLDE5NS4yNSw4MmE3LjA5LDcuMDksMCwwLDAsLjYzLTNoLTQuNjVhNS4zNSw1LjM1LDAsMCwwLTMuNDMuODMsMi42OCwyLjY4LDAsMCwwLTEsMi4xOSwyLjc0LDIuNzQsMCwwLDAsLjkzLDIuMkE0LjEzLDQuMTMsMCwwLDAsMTkwLjQ4LDg1WiIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTguNDQgLTYuOTUpIi8+PHBhdGggY2xhc3M9ImNscy0xIiBkPSJNMjA0LjU1LDg3LjI1Vjg0LjY2aDQuNTdWNzIuODljMC0uNi0uMjgtLjktLjg2LS45SDIwNVY2OS40aDQuMzZhMi43MywyLjczLDAsMCwxLDEuOS42NEEyLjQ1LDIuNDUsMCwwLDEsMjEyLDcydi43NmguMTVhNC44NCw0Ljg0LDAsMCwxLDEuNjQtMi43Nyw1LjE5LDUuMTksMCwwLDEsMy4zNi0xaDMuMjh2My4yMWgtMy43MWE0LjA5LDQuMDksMCwwLDAtMy4zOCwxLjQ2LDUuNjUsNS42NSwwLDAsMC0xLjE5LDMuNzJ2Ny4zMWg1LjYxdjIuNTlaIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtOC40NCAtNi45NSkiLz48cGF0aCBjbGFzcz0iY2xzLTEiIGQ9Ik0yMzIuNiw4Ny42OGE3LjYyLDcuNjIsMCwwLDEtNC0xLjA4LDcuMjYsNy4yNiwwLDAsMS0yLjc5LTMuMTgsMTEuNzMsMTEuNzMsMCwwLDEtMS01LjEzLDExLjUxLDExLjUxLDAsMCwxLDEtNS4wOEE3LjI5LDcuMjksMCwwLDEsMjI4LjU1LDcwYTcuNjIsNy42MiwwLDAsMSw0LTEuMDgsNi44LDYuOCwwLDAsMSwzLjUxLjgzQTUuMzYsNS4zNiwwLDAsMSwyMzguMTgsNzJWNjEuMzNoM1Y4Ny4yNWgtMi40OGwtLjMzLTIuNzdoLS4yMWE1LjU5LDUuNTksMCwwLDEtMi4xMywyLjM0QTYuNDIsNi40MiwwLDAsMSwyMzIuNiw4Ny42OFpNMjMzLDg0LjhhNC44OSw0Ljg5LDAsMCwwLDMuNzUtMS42LDcsNywwLDAsMCwxLjQ3LTQuODgsNyw3LDAsMCwwLTEuNDctNC44N0E0Ljg5LDQuODksMCwwLDAsMjMzLDcxLjg0YTQuOCw0LjgsMCwwLDAtMy43MiwxLjYxLDcsNywwLDAsMC0xLjQ2LDQuODcsNyw3LDAsMCwwLDEuNDYsNC44OEE0Ljc5LDQuNzksMCwwLDAsMjMzLDg0LjhaIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtOC40NCAtNi45NSkiLz48cGF0aCBjbGFzcz0iY2xzLTEiIGQ9Ik0yNTQuMjcsODcuNjhhOC45LDguOSwwLDAsMS01LjUzLTEuNiw2LDYsMCwwLDEtMi4zNi00LjQxaDMuMTRBMy41NSwzLjU1LDAsMCwwLDI1MSw4NC4wOGE1LjQ0LDUuNDQsMCwwLDAsMy4zNy45NCw0LjUyLDQuNTIsMCwwLDAsMy0uODYsMi41OSwyLjU5LDAsMCwwLDEtMiwyLjA4LDIuMDgsMCwwLDAtMS4xOS0yLjA3LDExLjkzLDExLjkzLDAsMCwwLTMuNTctLjg1LDEwLjc1LDEwLjc1LDAsMCwxLTQuNzEtMS41NUE0LjA4LDQuMDgsMCwwLDEsMjQ3LDc0YTQuNDUsNC40NSwwLDAsMSwxLjgzLTMuNjQsNy45Miw3LjkyLDAsMCwxLDUtMS40NCw3Ljc1LDcuNzUsMCwwLDEsNC45MywxLjQzLDUuNTYsNS41NiwwLDAsMSwyLjA1LDRoLTNhMi42NCwyLjY0LDAsMCwwLTEuMjQtMi4wNyw0Ljg5LDQuODksMCwwLDAtMi44My0uNzgsNC43NSw0Ljc1LDAsMCwwLTIuNzMuNjcsMiwyLDAsMCwwLTEsMS43NCwyLjA4LDIuMDgsMCwwLDAsMS4wOSwxLjc5LDguMTMsOC4xMywwLDAsMCwzLjQ4LjkxLDE4LjQsMTguNCwwLDAsMSwzLjQyLjcyQTUuMzIsNS4zMiwwLDAsMSwyNjAuNTEsNzlhNC40OSw0LjQ5LDAsMCwxLC45MiwzLDQuNjMsNC42MywwLDAsMS0uODgsMi45QTYuMyw2LjMsMCwwLDEsMjU4LDg3LDksOSwwLDAsMSwyNTQuMjcsODcuNjhaIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtOC40NCAtNi45NSkiLz48L2c+PC9nPjwvc3ZnPg==";
 const LOGO_FULL_B64 = "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NzguMjggMzkzLjYyIj48ZGVmcz48c3R5bGU+LmNscy0xe2ZpbGw6I2ZmZjt9PC9zdHlsZT48L2RlZnM+PGcgaWQ9IkxpdmVsbG9fMiIgZGF0YS1uYW1lPSJMaXZlbGxvIDIiPjxnIGlkPSJMaXZlbGxvXzEtMiIgZGF0YS1uYW1lPSJMaXZlbGxvIDEiPjxwYXRoIGNsYXNzPSJjbHMtMSIgZD0iTTE4NC45NCwzNTQuNzFWMzc5LjlsLTI1LjcxLDIuMjVWMzA0LjY3bDI1LjUyLTIuMjRWMjI0LjgxbDUyLjA2LTQuNTV2NTEuNDdsMjUuODgtMi4yN1YzNDcuMmwyNS44Ny0yLjI2VjIxNS43MWwxMDQtOS4xVjIzMmwyNS44NS0yLjI2VjM1OS41OEwyMzcsMzc1LjQ2di0yNS4zWm0xODEuNDktNjguNDdWMjM1bC0yNS4zNiwyLjIydjUxLjI4Wm0yNi4xLDI0LjMxTDM0MS4yMiwzMTV2MjUuMzNsNTEuMzEtNC40OVptLTE4MS4zLTEwLjIydjI1LjMxbDI1LjM1LTIuMjFWMjk4LjExWiIvPjxwYXRoIGNsYXNzPSJjbHMtMSIgZD0iTTYyNi43OCwxODYuMTRWMzE1LjUybDUxLjUtNC41MXYyNS44M0w1MjIuODYsMzUwLjQzVjMyNS4xNmwtNTIuMDUsNC41NXYyNS4zNWwtMjUuNzEsMi4yNVYyNzkuNjhsMjUuNDctMi4yM1YxOTkuODJsNTIuMDYtNC41NnY1MS40M2wyNS44OC0yLjI2djc3Ljc1bDI1Ljg3LTIuMjZWMTkwLjcyWm0tMTA0LjI5LDg3TDQ5NywyNzUuMzNWMzAwLjdsMjUuNDctMi4yM1oiLz48cGF0aCBjbGFzcz0iY2xzLTEiIGQ9Ik03OS44MiwxMTIuMjhsLTMxLjksMi43OXY3OS41OWwtMTYsMS40MVYxMTYuNTZMMCwxMTkuMzV2LTE2TDExMS42Miw5My42djQ3LjUybDMxLjktMi43OVY5MC44OGwxNS45Mi0xLjR2OTUuNDVsLTE1LjcsMS4zN1YxNTQuNzdsLTMxLjksMi43OVYxODlsLTMyLDIuOFoiLz48cGF0aCBjbGFzcz0iY2xzLTEiIGQ9Ik0yMzkuNDQsMTYydjE2bC02My41OSw1LjU2Vjg4bDYzLjU2LTUuNTZWOTguMDhsLTQ3LjU3LDQuMTZ2MzJsNDcuNTEtNC4xNXYxNmwtNDcuNTYsNC4xNnYxNS45MVoiLz48cGF0aCBjbGFzcz0iY2xzLTEiIGQ9Ik01NC44NywyNjEuNzV2MjUuOWwtMjUuNiwyLjI0djUxLjkzbDI1LjUtMi4yM3YyNi4yTDEwNywzNjEuMjJsLS4xNC0uMTN2MjUuNzJMMjksMzkzLjYyVjM2OC4wOEwzLjMxLDM3MC4zM1YyNjYuMzlMNTUsMjYxLjg3WiIvPjxwYXRoIGNsYXNzPSJjbHMtMSIgZD0iTTU1LDI2MS44N1YyMzYuMTRsNTEuNzMtNC41M1YyNTdsMjUuODUtMi4yNnYyNmwtNTEuNDEsNC40OVYyNTkuNDRsLTI2LjMxLDIuMzFaIi8+PHBhdGggY2xhc3M9ImNscy0xIiBkPSJNMTA3LDM2MS4yMlYzMzUuNTFsMjUuNjEtMi4yNHYyNS41N2wtMjUuNzUsMi4yNVoiLz48cGF0aCBjbGFzcz0iY2xzLTEiIGQ9Ik0zNzQuNDcsNDUuMzJoLS4yOGExMi43NywxMi43NywwLDEsMCwuMjgsMFoiLz48cGF0aCBjbGFzcz0iY2xzLTEiIGQ9Ik0zMzIuODcsMjkuNTNsLTQ5LDUyLjMyLDQxLDQ4LjA1QzM2NSwxNzcuNTUsNDIxLjQzLDE3Ni40NSw0NjEuMTEsMTI3TDUwMS4yLDc2LjYzLDQ1My41NiwyNy4zNEM0MTYuOS05Ljg3LDM2OS4zOS05LDMzMi44NywyOS41M1ptNjkuMDYsMTAwLjc5aDBhNDguNjIsNDguNjIsMCwwLDEtNTYuNzEtMzguODYsMi41NiwyLjU2LDAsMCwwLS4wNS0uMjcsNDguNzQsNDguNzQsMCwxLDEsNTYuNzYsMzkuMTNaIi8+PC9nPjwvZz48L3N2Zz4="; // Full logo with static eye — for header only
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -283,7 +283,7 @@ const MAX_PACKS   = 10;
 const PACK_REGEN  = 90;    // seconds (1:30)
 const CARDS_PER   = 5;
 const LUCKY_CHANCE = 0.05;  // 5% chance per pack
-const SAVE_KEY    = "thecabal_save_v1";
+const SAVE_KEY    = "networked_cards_save_v1";
 
 const RARITIES = {
   C:  { name:"Common",     short:"C",  color:"#555",    accent:"#999",    rate:0.7995 },
@@ -558,7 +558,7 @@ function drawCardTemplate(canvas, card, img=null, uiMode=false) {
   ctx.fillStyle=r.color+"22"; ctx.fillRect(8,8,W-16,26);
   ctx.strokeStyle=r.color+"30"; ctx.lineWidth=0.5; ctx.strokeRect(8,8,W-16,26);
   ctx.fillStyle="#d0d0d0"; ctx.font=`500 8px "DM Mono","Courier New",monospace`;
-  ctx.textAlign="left"; ctx.fillText("THE CABAL",14,24);
+  ctx.textAlign="left"; ctx.fillText("networked.cards",14,24);
   ctx.textAlign="right"; ctx.fillStyle=r.accent;
   ctx.fillText(r.name.toUpperCase(),W-14,24);
 
@@ -599,7 +599,7 @@ function drawCardTemplate(canvas, card, img=null, uiMode=false) {
 
   ctx.fillStyle=r.color+"22"; ctx.fillRect(8,H-22,W-16,16);
   ctx.fillStyle=r.accent; ctx.font=`500 7.5px "DM Mono","Courier New",monospace`;
-  ctx.textAlign="center"; ctx.fillText(`◆ ${r.name.toUpperCase()}  ·  THE CABAL`,W/2,H-11);
+  ctx.textAlign="center"; ctx.fillText(`◆ ${r.name.toUpperCase()}  ·  networked.cards`,W/2,H-11);
   // Serial number — top-right corner of art area header
   const serial = SERIAL_MAP[card.id];
   if (serial !== undefined) {
@@ -628,7 +628,7 @@ function downloadCardPNG(card) {
   const dl = (img) => {
     const c=document.createElement("canvas"); drawCardTemplate(c,card,img);
     const a=document.createElement("a"); a.href=c.toDataURL("image/png");
-    a.download=`thecabal_${card.id}.png`; a.click();
+    a.download=`networked_${card.id}.png`; a.click();
   };
   loadImg(ASSET.card(card.id))
     .then(dl)
@@ -837,7 +837,7 @@ function CardFace({ card, dispW, holoPos={x:0.5,y:0.5}, holoActive=false, allowT
         }}>
           <img
             src={`data:image/svg+xml;base64,${LOGO_FULL_B64}`}
-            alt="THE CABAL"
+            alt="networked.cards"
             style={{
               height: fs(.115), width:"auto",
               opacity:0.92,
@@ -855,7 +855,7 @@ function CardFace({ card, dispW, holoPos={x:0.5,y:0.5}, holoActive=false, allowT
         display:"flex", alignItems:"center", justifyContent:"space-between",
         padding:`0 ${fs(.04)}px`, zIndex:15,
       }}>
-        <span style={{fontFamily:"'DM Mono',monospace",fontSize:fs(.048),color:"#d0d0d0",fontWeight:500,letterSpacing:.5}}>THE CABAL</span>
+        <span style={{fontFamily:"'DM Mono',monospace",fontSize:fs(.048),color:"#d0d0d0",fontWeight:500,letterSpacing:.5}}>networked.cards</span>
         {serial && <span style={{fontFamily:"'DM Mono',monospace",fontSize:fs(.042),color:r.color+"99"}}>{`#${String(serial).padStart(3,"0")}`}</span>}
         <span style={{fontFamily:"'DM Mono',monospace",fontSize:fs(.042),color:r.accent,letterSpacing:.5}}>{r.name.toUpperCase()}</span>
       </div>}
@@ -907,7 +907,7 @@ function CardFace({ card, dispW, holoPos={x:0.5,y:0.5}, holoActive=false, allowT
         background:r.color+"22", zIndex:15,
         display:"flex", alignItems:"center", justifyContent:"center",
       }}>
-        <span style={{fontFamily:"'DM Mono',monospace",fontSize:fs(.044),color:r.accent,letterSpacing:.5}}>◆ {r.name.toUpperCase()}  ·  THE CABAL</span>
+        <span style={{fontFamily:"'DM Mono',monospace",fontSize:fs(.044),color:r.accent,letterSpacing:.5}}>◆ {r.name.toUpperCase()}  ·  networked.cards</span>
       </div>}
     </div>
   );
@@ -1054,26 +1054,11 @@ function FlippableCard({ card, dispW=120, noFlipOnClick=false, allowTilt=false }
           paddingTop: Math.round(dispW * 0.12),
         }}>
           {/* Logo with AnimatedEye overlaid on its eye — same as pack */}
-          <div style={{position:"relative", display:"inline-flex", alignItems:"center", justifyContent:"center"}}>
-            <img
+          <img
               src={`data:image/svg+xml;base64,${LOGO_B64}`}
-              alt="THE CABAL"
+              alt="networked.cards"
               style={{width: Math.round(dispW * 0.72), height:"auto", opacity:0.85, filter:"brightness(0) invert(1)"}}
             />
-            {/* AnimatedEye at same relative position as on the pack: 57.8% x, 21.3% y of logo */}
-            <div style={{
-              position:"absolute",
-              left:"57.8%", top:"21.3%",
-              transform:"translate(-50%,-50%)",
-            }}>
-              <AnimatedEye
-                size={Math.round(dispW * 0.72 * 0.27)}
-                opacity={0.85}
-                special={card.rarity === "LR"}
-                bgColor={r.color}
-              />
-            </div>
-          </div>
           <div style={{textAlign:"center",width:"100%",padding:"0 6px"}}>
             <div style={{fontFamily:"'DM Mono',monospace",fontSize:fontSize(.065),color:"rgba(255,255,255,0.7)",letterSpacing:.5,marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.name.toUpperCase()}</div>
             <div style={{fontFamily:"'DM Mono',monospace",fontSize:fontSize(.085),color:"rgba(255,255,255,0.92)",fontWeight:500,lineHeight:1.3,wordBreak:"break-word"}}>{card.name}</div>
@@ -1622,7 +1607,7 @@ function PackVisual({ special, phase, onAnimEnd, colorIdx=0 }) {
                 }}>
                   <img
                     src={`data:image/svg+xml;base64,${LOGO_B64}`}
-                    alt="THE CABAL"
+                    alt="networked.cards"
                     style={{
                       width: Math.round(PACK_W * 0.82),
                       height: "auto",
@@ -1630,18 +1615,7 @@ function PackVisual({ special, phase, onAnimEnd, colorIdx=0 }) {
                     }}
                   />
                 </div>
-                <div style={{
-                  position:"absolute",
-                  left:"56.4%", top:"24.5%",
-                  transform:"translate(-50%,-50%)",
-                }}>
-                  <AnimatedEye
-                    opacity={0.82}
-                    size={Math.round(PACK_W * 0.27)}
-                    special={false}
-                    bgColor={bg}
-                  />
-                </div>
+
               </>
             )}
 
@@ -1750,7 +1724,7 @@ function Logo() {
   return (
     <img
       src={`data:image/svg+xml;base64,${LOGO_FULL_B64}`}
-      alt="THE CABAL"
+      alt="networked.cards"
       style={{ height:28, width:"auto", display:"block", objectFit:"contain" }}
     />
   );
@@ -2478,11 +2452,27 @@ function TheCabalApp() {
 
       <footer style={{textAlign:"center",padding:"14px 0 18px",fontSize:8,color:"#333",
         letterSpacing:1.5,borderTop:"1px solid #0d0d0d"}}>
-        an experiment made with &lt;3 by{" "}
+        <span style={{color:"#333"}}>a CC0 experiment by{" "}
         <a href="https://x.com/itsfredi1" target="_blank" rel="noopener noreferrer"
-          style={{color:"#555",textDecoration:"none",transition:"color .15s"}}
+          style={{color:"#555",textDecoration:"none"}}
           onMouseEnter={e=>e.target.style.color="#999"}
           onMouseLeave={e=>e.target.style.color="#555"}>manfredi</a>
+        {". made possible by "}
+        <a href="https://github.com/jwahdatehagh" target="_blank" rel="noopener noreferrer"
+          style={{color:"#555",textDecoration:"none"}}
+          onMouseEnter={e=>e.target.style.color="#999"}
+          onMouseLeave={e=>e.target.style.color="#555"}>jalil.eth</a>
+        {", "}
+        <a href="https://visualizevalue.com" target="_blank" rel="noopener noreferrer"
+          style={{color:"#555",textDecoration:"none"}}
+          onMouseEnter={e=>e.target.style.color="#999"}
+          onMouseLeave={e=>e.target.style.color="#555"}>vv</a>
+        {" and "}
+        <a href="https://x.com/yougogirl_eth" target="_blank" rel="noopener noreferrer"
+          style={{color:"#555",textDecoration:"none"}}
+          onMouseEnter={e=>e.target.style.color="#999"}
+          onMouseLeave={e=>e.target.style.color="#555"}>ygg</a>
+        </span>
       </footer>
     </div>
   );
@@ -2806,7 +2796,7 @@ const ACHI_DEF = [
   { id:"allR",        s:"GACHA", label:"Rare Breed",       desc:"Collect every Rare card",             reward:4 },
   { id:"allUR",       s:"GACHA", label:"Ultra Roster",     desc:"Collect every Ultra Rare card",       reward:6 },
   { id:"allLR",       s:"GACHA", label:"Legendary Row",    desc:"Collect all Legendary cards",         reward:10 },
-  { id:"fullSet",     s:"GACHA", label:"The Cabal",        desc:"Collect every card in Season One",    reward:15 },
+  { id:"fullSet",     s:"GACHA", label:"networked.cards",        desc:"Collect every card in Season One",    reward:15 },
   // ── FORGE ──
   { id:"burn50",      s:"FORGE", label:"Melt Down",        desc:"Burn 50 duplicate cards in the Forge",reward:2 },
   { id:"burn100",     s:"FORGE", label:"The Furnace",      desc:"Burn 100 duplicate cards in the Forge",reward:4 },
@@ -3865,7 +3855,8 @@ function ICDealCard({ deal, player, dispW }) {
         <div style={{height:"52%",display:"flex",flexDirection:"column",
           alignItems:"center",justifyContent:"center",position:"relative",
           borderBottom:"1px solid #1e1800"}}>
-          <AnimatedEye size={eyeSize} opacity={0.75}/>
+          <img src={`data:image/svg+xml;base64,${LOGO_B64}`} alt="networked.cards"
+            style={{width:"70%",opacity:0.3,filter:"brightness(0) invert(1)"}}/>
           {/* EVENT badge top-left */}
           <div style={{position:"absolute",top:8,left:8,
             background:"rgba(0,0,0,0.9)",border:"1px solid #e8c96e66",
@@ -3973,7 +3964,8 @@ function ICResultCard({ result, prev, dispW }) {
           {result.accepted ? "ACCEPTED" : "REJECTED"}
         </div>
         <div style={{display:"flex",justifyContent:"center",alignItems:"center",flex:1,padding:"8px 0"}}>
-          <AnimatedEye size={eyeSize} opacity={0.7}/>
+          <img src={`data:image/svg+xml;base64,${LOGO_B64}`} alt="networked.cards"
+            style={{width:"65%",opacity:0.12,filter:"brightness(0) invert(1)"}}/>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:Math.round(dispW*.032)}}>
           {deltas.map(({k,label,color,d}) => (
@@ -4043,7 +4035,8 @@ function ICGameOverCard({ turns, death, isNew, best, dispW }) {
           letterSpacing:3,lineHeight:.88,textShadow:"0 0 40px #c0606077"}}>
           GAME<br/>OVER
         </div>
-        <AnimatedEye size={Math.round(dispW*.2)} opacity={0.5} special={true}/>
+        <img src={`data:image/svg+xml;base64,${LOGO_B64}`} alt="networked.cards"
+        style={{width:"55%",opacity:0.15,filter:"brightness(0) invert(1)"}}/>
         <div style={{...mono,fontSize:Math.round(dispW*.052),color:"#c06060",lineHeight:1.5,
           maxWidth:"88%"}}>
           {death}
@@ -4435,7 +4428,7 @@ async function downloadSummaryPng(player, turns, death, stats) {
   ctx.fillText("think you can do better? play at thecabal.cards", pad, CH+52);
 
   const link = document.createElement("a");
-  link.download = `thecabal_${(player.handle||"player").replace("@","")}_day${turns}.png`;
+  link.download = `networked_${(player.handle||"player").replace("@","")}_day${turns}.png`;
   link.href = canvas.toDataURL("image/png");
   link.click();
 }
