@@ -237,7 +237,7 @@ const SERIAL_MAP = {};
    IPFS CARD POOLS
 ══════════════════════════════════════════════════════ */
 const IMG_PROXY = (cid, w=400) =>
-  `https://wsrv.nl/?url=${encodeURIComponent("https://ipfs.io/ipfs/"+cid)}&w=${w}&output=webp&q=75&n=-1`;
+  `https://wsrv.nl/?url=${encodeURIComponent("https://cloudflare-ipfs.com/ipfs/"+cid)}&w=${w}&output=webp&q=80`;
 
 const POOLS = { LR:[], UR:[], R:[], C:[] };
 let _poolsLoaded = false;
