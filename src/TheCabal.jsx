@@ -2188,12 +2188,22 @@ function TheCabalApp() {
   }, []);
 
   // Pre-draw next pack and prefetch all 5 images immediately
+  const _preloadImgs = React.useRef([]); // keep Image objects alive
+
   const prepareNextPack = useCallback(() => {
     if (!ACCOUNTS.length) return;
     const cards = drawPack(false);
     setNextPackCards(cards);
-    cards.filter(c => c.collection && c.token_id)
-      .forEach(c => getAlchemyThumb(c.collection, c.token_id).catch(()=>{}));
+    // Fetch Alchemy URL AND preload actual image bytes into browser cache
+    cards.filter(c => c.collection && c.token_id).forEach(c => {
+      getAlchemyThumb(c.collection, c.token_id).then(url => {
+        if (!url) return;
+        const img = new window.Image();
+        img.src = url;
+        // Keep reference alive so browser doesn't evict from cache
+        _preloadImgs.current = [..._preloadImgs.current.slice(-20), img];
+      }).catch(()=>{});
+    });
   }, []);
 
   const checkAchi = useCallback((coll,total,prev,burnTotal) => {
@@ -2493,17 +2503,7 @@ function TheCabalApp() {
                   {luckyOpen&&!isBulk ? "✦ LUCKY PACK — " : ""}
                   {isBulk ? `x10 OPENING · ${revealCards.length} CARDS` : "SWIPE TO REVEAL"}
                 </div>
-                {/* DEBUG — remove after testing */}
-                <div style={{fontSize:7,color:"#333",textAlign:"center",marginBottom:8,letterSpacing:1,fontFamily:"'DM Mono',monospace"}}>
-                  {revealCards.slice(0,3).map((c,i) => {
-                    const key = c.collection && c.token_id ? `${c.collection}_${c.token_id}` : null;
-                    const cached = key ? _alchemyCache[key] : undefined;
-                    return <span key={i} style={{marginRight:6,color:cached?"#2ecc71":"#e74c3c"}}>
-                      {cached ? "✓" : "✗"}
-                    </span>;
-                  })}
-                  {" "}cache status
-                </div>
+
 
                 {!revealDone ? (
                   /* ── Swipe stack — Take All BELOW ── */
