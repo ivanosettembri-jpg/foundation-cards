@@ -1526,7 +1526,7 @@ function PackVisual({ special, phase, onAnimEnd, colorIdx=0 }) {
 
   const anim = {
     idle:    "packFloat 3s ease-in-out infinite",
-    shaking: "packShake 1.4s ease",
+    shaking: "packShake 0.6s ease",
     burst:   "packBurst 0.4s ease forwards",
   }[phase] || "none";
 
@@ -2109,7 +2109,7 @@ function TheCabalApp() {
         return;
       }
       setLoaded(true);
-      setTimeout(prepareNextPack, 1500); // pre-draw first pack after CSV loads
+      // prepareNextPack called via useEffect below
       // iOS gyro: request permission each session (required by iOS)
       if (needsGyroPermission()) {
         const stored = (() => { try { return localStorage.getItem(GYRO_PERM_KEY); } catch { return null; } })();
@@ -2256,9 +2256,7 @@ function TheCabalApp() {
       const drawnCards = null; // already set in shaking handler
       setRD(false);
       const toLoad = pendingCardsRef.current || revealCards; // use ref for sync access
-      // Show creative loading message
-      const msgs = ["i have a good feeling about this", "are you feeling lucky, ser?", "will it be ai slop?", "hold on ser", "bribing the validators...", "consulting the oracle...", "summoning from the chain...", "asking gm to the network...", "shuffling 343k tokens...", "the blockchain never lies"];
-      setLoadMsg(msgs[Math.floor(Math.random()*msgs.length)]);
+
       // Pre-fetch all Alchemy thumbs — wait up to 5s for all, or reveal when first is ready
       const prefetches = toLoad
         .filter(c => c.collection && c.token_id)
@@ -2484,12 +2482,7 @@ function TheCabalApp() {
               <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
                 <div style={{height:24}}/>
                 <PackVisual special={luckyOpen} phase={phase} onAnimEnd={handleAnimEnd} colorIdx={packColorIdx}/>
-                {phase==="burst" && loadMsg && (
-                  <div style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"#2a2a2a",
-                    letterSpacing:1,marginTop:16,animation:"fadeIn .4s ease"}}>
-                    {loadMsg}
-                  </div>
-                )}
+
               </div>
             )}
 
