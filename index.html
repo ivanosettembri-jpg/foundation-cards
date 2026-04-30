@@ -17,15 +17,27 @@
         from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
       import { getFirestore, doc, getDoc, setDoc }
         from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-      const k = "__FIREBASE_API_KEY__";
-      if (k && k !== "__FIREBASE_API_KEY__") {
-        const app = initializeApp({ apiKey:k, authDomain:"networkedcards.firebaseapp.com",
-          projectId:"networkedcards", storageBucket:"networkedcards.firebasestorage.app",
-          messagingSenderId:"1000213692591", appId:"1:1000213692591:web:b7220dd156dfffd388d45a" });
-        window._fbAuth=getAuth(app); window._fbDb=getFirestore(app);
-        window.GoogleAuthProvider=GoogleAuthProvider; window.signInWithPopup=signInWithPopup;
-        window.firebaseSignOut=signOut; window.onAuthStateChanged=onAuthStateChanged;
-        window.firestoreDoc=doc; window.firestoreGetDoc=getDoc; window.firestoreSetDoc=setDoc;
+      try {
+        const app = initializeApp({
+          apiKey: "AIzaSyB5u27w0ziBf9pGw04cFf-xhDBCZ9H5kEY",
+          authDomain: "networkedcards.firebaseapp.com",
+          projectId: "networkedcards",
+          storageBucket: "networkedcards.firebasestorage.app",
+          messagingSenderId: "1000213692591",
+          appId: "1:1000213692591:web:b7220dd156dfffd388d45a"
+        });
+        window._fbAuth = getAuth(app);
+        window._fbDb = getFirestore(app);
+        window.GoogleAuthProvider = GoogleAuthProvider;
+        window.signInWithPopup = signInWithPopup;
+        window.firebaseSignOut = signOut;
+        window.onAuthStateChanged = onAuthStateChanged;
+        window.firestoreDoc = doc;
+        window.firestoreGetDoc = getDoc;
+        window.firestoreSetDoc = setDoc;
+        console.log("Firebase loaded ✓");
+      } catch(e) {
+        console.error("Firebase init failed:", e);
       }
     </script>
     <script type="module" src="/src/main.jsx"></script>
