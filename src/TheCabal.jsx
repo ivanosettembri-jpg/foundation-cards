@@ -2139,6 +2139,34 @@ function TheCabalApp() {
     });
   }, [persist]);
 
+  const handleGoogleLogin = useCallback(async () => {
+    if (!window._fbAuth || !window.GoogleAuthProvider) return;
+    try {
+      const provider = new window.GoogleAuthProvider();
+      const result = await window.signInWithPopup(window._fbAuth, provider);
+      const user = result.user;
+      setAuthUser(user);
+      const cloud = await cloudLoad(user.uid);
+      if (cloud && (cloud.collection?.length||0) > st.collection.length) {
+        setSt(prev => { const m={...prev,...cloud}; persist(m); return m; });
+        setNotif("☁ cloud save loaded"); setTimeout(()=>setNotif(null),2600);
+      } else {
+        await cloudSave(user.uid, st);
+        setNotif("☁ synced to cloud"); setTimeout(()=>setNotif(null),2600);
+      }
+    } catch(e) { if(e.code!=="auth/popup-closed-by-user") console.warn(e); }
+  }, [st, persist]);
+
+  const handleGoogleLogout = useCallback(async () => {
+    if (window._fbAuth && window.firebaseSignOut) await window.firebaseSignOut(window._fbAuth);
+    setAuthUser(null);
+  }, []);
+
+  useEffect(() => {
+    if (!window._fbAuth || !window.onAuthStateChanged) return;
+    return window.onAuthStateChanged(window._fbAuth, u => setAuthUser(u||null));
+  }, []);
+
   const notify = useCallback((msg) => {
     setNotif(msg); setTimeout(()=>setNotif(null), 2600);
   }, []);
