@@ -2188,22 +2188,30 @@ function TheCabalApp() {
   }, []);
 
   // Pre-draw next pack and prefetch all 5 images immediately
-  const _preloadImgs = React.useRef([]); // keep Image objects alive
+  const _preloadImgs = React.useRef([]);
+  const _preloadReady = React.useRef(Promise.resolve()); // resolves when all images loaded
 
   const prepareNextPack = useCallback(() => {
     if (!ACCOUNTS.length) return;
     const cards = drawPack(false);
     setNextPackCards(cards);
-    // Fetch Alchemy URL AND preload actual image bytes into browser cache
-    cards.filter(c => c.collection && c.token_id).forEach(c => {
+    // Fetch URL then download actual image bytes — store promise of completion
+    const loadPromises = cards.filter(c => c.collection && c.token_id).map(c =>
       getAlchemyThumb(c.collection, c.token_id).then(url => {
         if (!url) return;
-        const img = new window.Image();
-        img.src = url;
-        // Keep reference alive so browser doesn't evict from cache
-        _preloadImgs.current = [..._preloadImgs.current.slice(-20), img];
-      }).catch(()=>{});
-    });
+        return new Promise(resolve => {
+          const img = new window.Image();
+          img.onload = resolve;
+          img.onerror = resolve; // resolve even on error so we don't block
+          img.src = url;
+          _preloadImgs.current = [..._preloadImgs.current.slice(-20), img];
+        });
+      }).catch(()=>{})
+    );
+    _preloadReady.current = Promise.race([
+      Promise.all(loadPromises),
+      new Promise(res => setTimeout(res, 5000)), // max 5s wait
+    ]);
   }, []);
 
   const checkAchi = useCallback((coll,total,prev,burnTotal) => {
