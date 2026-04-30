@@ -15,6 +15,37 @@
   </head>
   <body>
     <div id="root"></div>
+
+    <!-- Firebase via CDN — completely outside Vite bundle -->
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+      import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
+        from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+      import { getFirestore, doc, getDoc, setDoc }
+        from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+      const apiKey = document.querySelector('meta[name="fb-api-key"]')?.content;
+      if (apiKey) {
+        const app = initializeApp({
+          apiKey,
+          authDomain: "networkedcards.firebaseapp.com",
+          projectId: "networkedcards",
+          storageBucket: "networkedcards.firebasestorage.app",
+          messagingSenderId: "1000213692591",
+          appId: "1:1000213692591:web:b7220dd156dfffd388d45a"
+        });
+        window._fbAuth = getAuth(app);
+        window._fbDb   = getFirestore(app);
+        window.GoogleAuthProvider   = GoogleAuthProvider;
+        window.signInWithPopup      = signInWithPopup;
+        window.firebaseSignOut      = signOut;
+        window.onAuthStateChanged   = onAuthStateChanged;
+        window.firestoreDoc         = doc;
+        window.firestoreGetDoc      = getDoc;
+        window.firestoreSetDoc      = setDoc;
+      }
+    </script>
+
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
