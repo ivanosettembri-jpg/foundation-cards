@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { fbAuth, fbDb, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, doc, getDoc, setDoc } from "./firebase.js";
 
 /* ══════════════════════════════════════════════════════
    IPFS GATEWAY ROTATION
@@ -1949,21 +1948,49 @@ function LoadingScreen({ progress, error, onFile }) {
 ══════════════════════════════════════════════════════ */
 
 
-async function cloudSave(uid, data) {
-  const db = fbDb();
-  if (!db) return;
+// Firebase loaded lazily on first use — avoids Vite circular dep issues
+let _fbMod = null;
+async function getFB() {
+  if (_fbMod) return _fbMod;
+  if (!import.meta.env.VITE_FIREBASE_API_KEY) return null;
   try {
-    const ref = doc(db, "saves", uid);
-    await setDoc(ref, { save: JSON.stringify(data), updatedAt: Date.now() });
+    const [{ initializeApp }, { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged },
+           { getFirestore, doc, getDoc, setDoc }] = await Promise.all([
+      import("firebase/app"),
+      import("firebase/auth"),
+      import("firebase/firestore"),
+    ]);
+    const cfg = {
+      apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+      authDomain: "networkedcards.firebaseapp.com",
+      projectId: "networkedcards",
+      storageBucket: "networkedcards.firebasestorage.app",
+      messagingSenderId: "1000213692591",
+      appId: "1:1000213692591:web:b7220dd156dfffd388d45a"
+    };
+    const app  = initializeApp(cfg);
+    const auth = getAuth(app);
+    const db   = getFirestore(app);
+    _fbMod = { auth, db, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, doc, getDoc, setDoc };
+  } catch(e) { console.warn("Firebase load failed:", e); return null; }
+  return _fbMod;
+}
+
+async function cloudSave(uid, data) {
+  const fb = await getFB();
+  if (!fb) return;
+  try {
+    const ref = fb.doc(fb.db, "saves", uid);
+    await fb.setDoc(ref, { save: JSON.stringify(data), updatedAt: Date.now() });
   } catch(e) { console.warn("Cloud save failed:", e); }
 }
 
 async function cloudLoad(uid) {
-  const db = fbDb();
-  if (!db) return null;
+  const fb = await getFB();
+  if (!fb) return null;
   try {
-    const ref = doc(db, "saves", uid);
-    const snap = await getDoc(ref);
+    const ref = fb.doc(fb.db, "saves", uid);
+    const snap = await fb.getDoc(ref);
     if (snap.exists()) return JSON.parse(snap.data().save);
   } catch(e) { console.warn("Cloud load failed:", e); }
   return null;
@@ -1971,7 +1998,7 @@ async function cloudLoad(uid) {
 
 function AuthButton({ user, onLogin, onLogout }) {
   const mono = { fontFamily:"'DM Mono',monospace" };
-  if (!fbAuth()) return null; // hidden until Firebase is configured
+  if (!import.meta.env.VITE_FIREBASE_API_KEY) return null;
   if (user) return (
     <div style={{display:"flex",alignItems:"center",gap:8}}>
       {user.photoURL && <img src={user.photoURL} style={{width:22,height:22,borderRadius:"50%",opacity:.7}} alt=""/>}
@@ -2136,8 +2163,9 @@ function TheCabalApp() {
   }, [loaded, persist]);
 
   const handleGoogleLogin = useCallback(async () => {
-    const auth = fbAuth();
-    if (!auth) return;
+    const fb = await getFB();
+    if (!fb) return;
+    const { auth, GoogleAuthProvider, signInWithPopup } = fb;
     try {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
@@ -2156,19 +2184,20 @@ function TheCabalApp() {
   }, [st, persist, notify]);
 
   const handleGoogleLogout = useCallback(async () => {
-    const auth = fbAuth();
-    if (auth) await signOut(auth);
+    const fb = await getFB();
+    if (fb) await fb.signOut(fb.auth);
     setAuthUser(null);
     notify("signed out");
   }, []);
 
   // Listen to auth state changes
   useEffect(() => {
-    const auth = fbAuth();
-    if (!auth) return;
-    return onAuthStateChanged(auth, async user => {
-      setAuthUser(user || null);
+    let unsub = null;
+    getFB().then(fb => {
+      if (!fb) return;
+      unsub = fb.onAuthStateChanged(fb.auth, user => setAuthUser(user || null));
     });
+    return () => { if (unsub) unsub(); };
   }, []);
 
   // Auto cloud-save on every state change when logged in
