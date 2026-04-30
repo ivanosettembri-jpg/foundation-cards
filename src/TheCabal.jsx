@@ -1946,8 +1946,15 @@ function LoadingScreen({ progress, error, onFile }) {
    GOOGLE AUTH — uses Firebase CDN loaded in index.html
 ══════════════════════════════════════════════════════ */
 function AuthButton({ user, onLogin, onLogout }) {
-  const hasFirebase = typeof window !== "undefined" && window._fbAuth;
-  if (!hasFirebase) return null;
+  // Firebase CDN loads async — poll until ready
+  const [fbReady, setFbReady] = React.useState(!!window._fbAuth);
+  React.useEffect(() => {
+    if (fbReady) return;
+    const t = setInterval(() => { if (window._fbAuth) { setFbReady(true); clearInterval(t); } }, 200);
+    setTimeout(() => clearInterval(t), 5000); // give up after 5s
+    return () => clearInterval(t);
+  }, [fbReady]);
+  if (!fbReady) return null;
   const mono = { fontFamily:"'DM Mono',monospace" };
   if (user) return (
     <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -2372,6 +2379,7 @@ function TheCabalApp() {
       <header style={{padding:"18px 20px 0",borderBottom:"1px solid #111",maxWidth:680,margin:"0 auto",width:"100%"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
           <AuthButton user={authUser} onLogin={handleGoogleLogin} onLogout={handleGoogleLogout}/>
+          <div style={{flex:1}}/>{/* push logo right */}
           <Logo/>
         </div>
         <nav style={{display:"flex",gap:0}}>
