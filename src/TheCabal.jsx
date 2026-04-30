@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
-import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
+import { fbAuth, fbDb, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, doc, getDoc, setDoc } from "./firebase.js";
 
 /* ══════════════════════════════════════════════════════
    IPFS GATEWAY ROTATION
@@ -1949,38 +1947,22 @@ function LoadingScreen({ progress, error, onFile }) {
    FIREBASE — Google Auth + Firestore cloud save
    Replace FIREBASE_CONFIG with your own project config
 ══════════════════════════════════════════════════════ */
-const FIREBASE_CONFIG = import.meta.env.VITE_FIREBASE_API_KEY ? {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: "networkedcards.firebaseapp.com",
-  projectId: "networkedcards",
-  storageBucket: "networkedcards.firebasestorage.app",
-  messagingSenderId: "1000213692591",
-  appId: "1:1000213692591:web:b7220dd156dfffd388d45a"
-} : null;
 
-let _fbApp = null, _fbAuth = null, _fbDb = null;
-function getFirebaseAuth() {
-  if (!FIREBASE_CONFIG) return null;
-  if (!_fbApp) {
-    _fbApp = initializeApp(FIREBASE_CONFIG);
-    _fbAuth = getAuth(_fbApp);
-    _fbDb   = getFirestore(_fbApp);
-  }
-  return _fbAuth;
-}
 
 async function cloudSave(uid, data) {
-  if (!_fbDb) return;
+  const db = fbDb();
+  if (!db) return;
   try {
-    const ref = doc(_fbDb, "saves", uid);
+    const ref = doc(db, "saves", uid);
     await setDoc(ref, { save: JSON.stringify(data), updatedAt: Date.now() });
   } catch(e) { console.warn("Cloud save failed:", e); }
 }
 
 async function cloudLoad(uid) {
-  if (!_fbDb) return null;
+  const db = fbDb();
+  if (!db) return null;
   try {
-    const ref = doc(_fbDb, "saves", uid);
+    const ref = doc(db, "saves", uid);
     const snap = await getDoc(ref);
     if (snap.exists()) return JSON.parse(snap.data().save);
   } catch(e) { console.warn("Cloud load failed:", e); }
@@ -1989,7 +1971,7 @@ async function cloudLoad(uid) {
 
 function AuthButton({ user, onLogin, onLogout }) {
   const mono = { fontFamily:"'DM Mono',monospace" };
-  if (!FIREBASE_CONFIG) return null; // hidden until Firebase is configured
+  if (!fbAuth()) return null; // hidden until Firebase is configured
   if (user) return (
     <div style={{display:"flex",alignItems:"center",gap:8}}>
       {user.photoURL && <img src={user.photoURL} style={{width:22,height:22,borderRadius:"50%",opacity:.7}} alt=""/>}
@@ -2154,7 +2136,7 @@ function TheCabalApp() {
   }, [loaded, persist]);
 
   const handleGoogleLogin = useCallback(async () => {
-    const auth = getFirebaseAuth();
+    const auth = fbAuth();
     if (!auth) return;
     try {
       const provider = new GoogleAuthProvider();
@@ -2174,7 +2156,7 @@ function TheCabalApp() {
   }, [st, persist, notify]);
 
   const handleGoogleLogout = useCallback(async () => {
-    const auth = getFirebaseAuth();
+    const auth = fbAuth();
     if (auth) await signOut(auth);
     setAuthUser(null);
     notify("signed out");
@@ -2182,7 +2164,7 @@ function TheCabalApp() {
 
   // Listen to auth state changes
   useEffect(() => {
-    const auth = getFirebaseAuth();
+    const auth = fbAuth();
     if (!auth) return;
     return onAuthStateChanged(auth, async user => {
       setAuthUser(user || null);
