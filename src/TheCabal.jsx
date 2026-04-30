@@ -2493,6 +2493,17 @@ function TheCabalApp() {
                   {luckyOpen&&!isBulk ? "✦ LUCKY PACK — " : ""}
                   {isBulk ? `x10 OPENING · ${revealCards.length} CARDS` : "SWIPE TO REVEAL"}
                 </div>
+                {/* DEBUG — remove after testing */}
+                <div style={{fontSize:7,color:"#333",textAlign:"center",marginBottom:8,letterSpacing:1,fontFamily:"'DM Mono',monospace"}}>
+                  {revealCards.slice(0,3).map((c,i) => {
+                    const key = c.collection && c.token_id ? `${c.collection}_${c.token_id}` : null;
+                    const cached = key ? _alchemyCache[key] : undefined;
+                    return <span key={i} style={{marginRight:6,color:cached?"#2ecc71":"#e74c3c"}}>
+                      {cached ? "✓" : "✗"}
+                    </span>;
+                  })}
+                  {" "}cache status
+                </div>
 
                 {!revealDone ? (
                   /* ── Swipe stack — Take All BELOW ── */
