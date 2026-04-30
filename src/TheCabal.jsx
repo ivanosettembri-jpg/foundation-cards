@@ -2062,6 +2062,7 @@ function TheCabalApp() {
   const [isBulk,setIsBulk]   = useState(false);
   const isBulkRef = useRef(false);
   useEffect(() => { isBulkRef.current = isBulk; }, [isBulk]);
+  const pendingCardsRef = useRef(null); // sync bridge between shaking and burst
   const [notif,setNotif]     = useState(null);
   const [regenS,setRegenS]   = useState(PACK_REGEN);
   const [importing,setImp]   = useState(false);
@@ -2228,13 +2229,12 @@ function TheCabalApp() {
   const handleAnimEnd = useCallback(p => {
     if (p==="shaking") {
       if (!isBulkRef.current) {
-        // Use pre-drawn cards if available (images already in Alchemy cache)
         const cards = nextPackCards || drawPack(luckyRef.current);
-        setRC(cards);
-        setNextPackCards(null); // consume
-        // If we used pre-drawn cards, images are already cached — instant display
-        // If not (first pack), start prefetch now
+        pendingCardsRef.current = cards; // sync — available immediately in burst
+        setRC(cards); // async — for UI
+        setNextPackCards(null);
         if (!nextPackCards) {
+          // Not pre-fetched yet — start now
           cards.filter(c => c.collection && c.token_id)
             .forEach(c => getAlchemyThumb(c.collection, c.token_id).catch(()=>{}));
         }
@@ -2246,7 +2246,7 @@ function TheCabalApp() {
       // Cards already drawn during shaking phase for x1; x10 drawn earlier
       const drawnCards = null; // already set in shaking handler
       setRD(false);
-      const toLoad = revealCards; // cards set in shaking phase
+      const toLoad = pendingCardsRef.current || revealCards; // use ref for sync access
       // Show creative loading message
       const msgs = ["i have a good feeling about this", "are you feeling lucky, ser?", "will it be ai slop?", "hold on ser", "bribing the validators...", "consulting the oracle...", "summoning from the chain...", "asking gm to the network...", "shuffling 343k tokens...", "the blockchain never lies"];
       setLoadMsg(msgs[Math.floor(Math.random()*msgs.length)]);
