@@ -1,21 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 
-// Show uncaught errors on screen in production
-if (typeof window !== "undefined") {
-  window.addEventListener("error", e => {
-    const div = document.createElement("div");
-    div.style.cssText = "position:fixed;top:0;left:0;right:0;background:#1a0000;color:#ff6b6b;padding:12px;font-family:monospace;font-size:11px;z-index:99999;white-space:pre-wrap;word-break:break-all;border-bottom:1px solid #e74c3c";
-    div.textContent = "ERROR: " + e.message + "\n" + (e.filename||"") + ":" + e.lineno;
-    document.body?.prepend(div);
-  });
-  window.addEventListener("unhandledrejection", e => {
-    const div = document.createElement("div");
-    div.style.cssText = "position:fixed;top:0;left:0;right:0;background:#1a0000;color:#ff6b6b;padding:12px;font-family:monospace;font-size:11px;z-index:99999;white-space:pre-wrap;word-break:break-all;border-bottom:1px solid #e74c3c";
-    div.textContent = "PROMISE ERROR: " + String(e.reason);
-    document.body?.prepend(div);
-  });
-}
-
 /* ══════════════════════════════════════════════════════
    IPFS GATEWAY ROTATION
    Tries gateways in order on error. w3s.link and
@@ -1959,52 +1943,19 @@ function LoadingScreen({ progress, error, onFile }) {
 
 
 /* ══════════════════════════════════════════════════════
-   FIREBASE — Google Auth + Firestore cloud save
-   Replace FIREBASE_CONFIG with your own project config
+   GOOGLE AUTH — uses Firebase CDN loaded in index.html
 ══════════════════════════════════════════════════════ */
-
-
-// Firebase loaded via CDN script tags in index.html
-// window.firebase is set by the CDN scripts before the app loads
-function getFBAuth() {
-  return window._fbAuth || null;
-}
-function getFBDb() {
-  return window._fbDb || null;
-}
-
-async function cloudSave(uid, data) {
-  const db = getFBDb();
-  if (!db) return;
-  try {
-    const ref = window.firestoreDoc(db, "saves", uid);
-    await window.firestoreSetDoc(ref, { save: JSON.stringify(data), updatedAt: Date.now() });
-  } catch(e) { console.warn("Cloud save failed:", e); }
-}
-
-async function cloudLoad(uid) {
-  const db = getFBDb();
-  if (!db) return null;
-  try {
-    const ref = window.firestoreDoc(db, "saves", uid);
-    const snap = await window.firestoreGetDoc(ref);
-    if (snap.exists()) return JSON.parse(snap.data().save);
-  } catch(e) { console.warn("Cloud load failed:", e); }
-  return null;
-}
-
 function AuthButton({ user, onLogin, onLogout }) {
+  const hasFirebase = typeof window !== "undefined" && window._fbAuth;
+  if (!hasFirebase) return null;
   const mono = { fontFamily:"'DM Mono',monospace" };
-  if (!getFBAuth()) return null;
   if (user) return (
     <div style={{display:"flex",alignItems:"center",gap:8}}>
       {user.photoURL && <img src={user.photoURL} style={{width:22,height:22,borderRadius:"50%",opacity:.7}} alt=""/>}
       <button onClick={onLogout} style={{...mono,background:"transparent",border:"1px solid #1e1e1e",
         borderRadius:3,padding:"4px 8px",color:"#444",fontSize:7,letterSpacing:1,cursor:"pointer"}}
         onMouseEnter={e=>e.currentTarget.style.color="#888"}
-        onMouseLeave={e=>e.currentTarget.style.color="#444"}>
-        sign out
-      </button>
+        onMouseLeave={e=>e.currentTarget.style.color="#444"}>sign out</button>
     </div>
   );
   return (
@@ -2019,9 +1970,27 @@ function AuthButton({ user, onLogin, onLogout }) {
         <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
         <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
       </svg>
-      sign in
+      sign in with Google
     </button>
   );
+}
+
+async function cloudSave(uid, data) {
+  if (!window._fbDb || !window.firestoreDoc) return;
+  try {
+    const ref = window.firestoreDoc(window._fbDb, "saves", uid);
+    await window.firestoreSetDoc(ref, { save: JSON.stringify(data), updatedAt: Date.now() });
+  } catch(e) { console.warn("Cloud save failed:", e); }
+}
+
+async function cloudLoad(uid) {
+  if (!window._fbDb || !window.firestoreDoc) return null;
+  try {
+    const ref = window.firestoreDoc(window._fbDb, "saves", uid);
+    const snap = await window.firestoreGetDoc(ref);
+    if (snap.exists()) return JSON.parse(snap.data().save);
+  } catch(e) { console.warn("Cloud load failed:", e); }
+  return null;
 }
 
 function TheCabalApp() {
@@ -2158,46 +2127,6 @@ function TheCabalApp() {
     }, 1000);
     return () => clearInterval(id);
   }, [loaded, persist]);
-
-  const handleGoogleLogin = useCallback(async () => {
-    const auth = getFBAuth();
-    if (!auth) return;
-    try {
-      const provider = new window.GoogleAuthProvider();
-      const result = await window.signInWithPopup(auth, provider);
-      const user = result.user;
-      setAuthUser(user);
-      // Load cloud save — merge with local (take whichever has more collection)
-      const cloud = await cloudLoad(user.uid);
-      if (cloud && cloud.collection?.length > st.collection.length) {
-        setSt(prev => { const merged = {...prev, ...cloud}; persist(merged); return merged; });
-        notify("☁ cloud save loaded");
-      } else if (st.collection.length > 0) {
-        await cloudSave(user.uid, st);
-        notify("☁ local save synced to cloud");
-      }
-    } catch(e) { if (e.code !== "auth/popup-closed-by-user") notify("login failed"); }
-  }, [st, persist, notify]);
-
-  const handleGoogleLogout = useCallback(async () => {
-    const auth = getFBAuth();
-    if (auth) await window.firebaseSignOut(auth);
-    setAuthUser(null);
-    notify("signed out");
-  }, []);
-
-  // Listen to auth state changes
-  useEffect(() => {
-    const auth = getFBAuth();
-    if (!auth || !window.onAuthStateChanged) return;
-    const unsub = window.onAuthStateChanged(auth, user => setAuthUser(user || null));
-    return () => unsub();
-  }, []);
-
-  // Auto cloud-save on every state change when logged in
-  useEffect(() => {
-    if (authUser && loaded) cloudSave(authUser.uid, st);
-  }, [st, authUser, loaded]);
 
   const toggleFav = useCallback((cardId) => {
     setSt(prev => {
@@ -2414,9 +2343,7 @@ function TheCabalApp() {
       {/* Header */}
       <header style={{padding:"18px 20px 0",borderBottom:"1px solid #111",maxWidth:680,margin:"0 auto",width:"100%"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-          {/* Auth slot — left */}
           <AuthButton user={authUser} onLogin={handleGoogleLogin} onLogout={handleGoogleLogout}/>
-          {/* Logo — right */}
           <Logo/>
         </div>
         <nav style={{display:"flex",gap:0}}>
@@ -5084,22 +5011,6 @@ function MissionsView({ st, save, notify, uniqueCards }) {
   );
 }
 
-class ErrorBoundary extends React.Component {
-  constructor(props) { super(props); this.state = { error: null }; }
-  static getDerivedStateFromError(e) { return { error: e }; }
-  render() {
-    if (this.state.error) return (
-      <div style={{background:"#0a0a0a",color:"#e74c3c",padding:20,fontFamily:"monospace",fontSize:11,
-        position:"fixed",inset:0,overflow:"auto",zIndex:99999,whiteSpace:"pre-wrap",wordBreak:"break-all"}}>
-        <div style={{color:"#fff",fontSize:14,marginBottom:12}}>⚠ App Error — copy this and send it</div>
-        <div style={{color:"#e74c3c"}}>{String(this.state.error)}</div>
-        <div style={{color:"#888",marginTop:12,fontSize:10}}>{this.state.error?.stack}</div>
-      </div>
-    );
-    return this.props.children;
-  }
-}
-
 export default function TheCabal() {
-  return <ErrorBoundary><TheCabalApp/></ErrorBoundary>;
+  return <TheCabalApp/>;
 }

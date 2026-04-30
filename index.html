@@ -4,48 +4,30 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>networked.cards</title>
-    <meta name="description" content="Collect Foundation NFT cards" />
-    <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; }
-      body { background: #080808; }
-    </style>
+    <style>* { margin:0; padding:0; box-sizing:border-box; } body { background:#080808; }</style>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&display=swap" rel="stylesheet" />
   </head>
   <body>
     <div id="root"></div>
-
-    <!-- Firebase via CDN — completely outside Vite bundle -->
     <script type="module">
       import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
       import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
         from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
       import { getFirestore, doc, getDoc, setDoc }
         from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
-      const apiKey = document.querySelector('meta[name="fb-api-key"]')?.content;
-      if (apiKey) {
-        const app = initializeApp({
-          apiKey,
-          authDomain: "networkedcards.firebaseapp.com",
-          projectId: "networkedcards",
-          storageBucket: "networkedcards.firebasestorage.app",
-          messagingSenderId: "1000213692591",
-          appId: "1:1000213692591:web:b7220dd156dfffd388d45a"
-        });
-        window._fbAuth = getAuth(app);
-        window._fbDb   = getFirestore(app);
-        window.GoogleAuthProvider   = GoogleAuthProvider;
-        window.signInWithPopup      = signInWithPopup;
-        window.firebaseSignOut      = signOut;
-        window.onAuthStateChanged   = onAuthStateChanged;
-        window.firestoreDoc         = doc;
-        window.firestoreGetDoc      = getDoc;
-        window.firestoreSetDoc      = setDoc;
+      const k = "__FIREBASE_API_KEY__";
+      if (k && k !== "__FIREBASE_API_KEY__") {
+        const app = initializeApp({ apiKey:k, authDomain:"networkedcards.firebaseapp.com",
+          projectId:"networkedcards", storageBucket:"networkedcards.firebasestorage.app",
+          messagingSenderId:"1000213692591", appId:"1:1000213692591:web:b7220dd156dfffd388d45a" });
+        window._fbAuth=getAuth(app); window._fbDb=getFirestore(app);
+        window.GoogleAuthProvider=GoogleAuthProvider; window.signInWithPopup=signInWithPopup;
+        window.firebaseSignOut=signOut; window.onAuthStateChanged=onAuthStateChanged;
+        window.firestoreDoc=doc; window.firestoreGetDoc=getDoc; window.firestoreSetDoc=setDoc;
       }
     </script>
-
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
