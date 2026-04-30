@@ -2057,6 +2057,7 @@ function TheCabalApp() {
   const packColorIdx = (st.totalOpened ?? 0) % 4;
   const [revealCards,setRC]  = useState([]);
   const [revealDone,setRD]   = useState(false);
+  const [nextPackCards,setNextPackCards] = useState(null); // pre-drawn for instant open
   const [bulkModal,setBulkModal] = useState(null);
   const [isBulk,setIsBulk]   = useState(false);
   const isBulkRef = useRef(false);
@@ -2107,12 +2108,7 @@ function TheCabalApp() {
         return;
       }
       setLoaded(true);
-      // Pre-fetch first pack images immediately on load
-      setTimeout(() => {
-        const firstCards = drawPack(false);
-        firstCards.filter(c => c.collection && c.token_id)
-          .forEach(c => getAlchemyThumb(c.collection, c.token_id).catch(()=>{}));
-      }, 2000); // wait 2s for CSV to settle
+      setTimeout(prepareNextPack, 1500); // pre-draw first pack after CSV loads
       // iOS gyro: request permission each session (required by iOS)
       if (needsGyroPermission()) {
         const stored = (() => { try { return localStorage.getItem(GYRO_PERM_KEY); } catch { return null; } })();
@@ -2231,14 +2227,17 @@ function TheCabalApp() {
 
   const handleAnimEnd = useCallback(p => {
     if (p==="shaking") {
-      // Draw cards NOW (during shake animation) so we can prefetch images immediately
       if (!isBulkRef.current) {
-        const earlyDraw = drawPack(luckyRef.current);
-        setRC(earlyDraw);
-        // Start Alchemy prefetch during the shake animation (~550ms)
-        earlyDraw
-          .filter(c => c.collection && c.token_id)
-          .forEach(c => getAlchemyThumb(c.collection, c.token_id).catch(()=>{}));
+        // Use pre-drawn cards if available (images already in Alchemy cache)
+        const cards = nextPackCards || drawPack(luckyRef.current);
+        setRC(cards);
+        setNextPackCards(null); // consume
+        // If we used pre-drawn cards, images are already cached — instant display
+        // If not (first pack), start prefetch now
+        if (!nextPackCards) {
+          cards.filter(c => c.collection && c.token_id)
+            .forEach(c => getAlchemyThumb(c.collection, c.token_id).catch(()=>{}));
+        }
       }
       setPhase("burst");
       return;
@@ -2287,13 +2286,6 @@ function TheCabalApp() {
   }, [notify]);
 
   /* take all after reveal */
-  const prefetchNextPack = useCallback(() => {
-    // Draw next pack silently and prefetch images
-    const nextCards = drawPack(false);
-    nextCards.filter(c => c.collection && c.token_id)
-      .forEach(c => getAlchemyThumb(c.collection, c.token_id).catch(()=>{}));
-  }, []);
-
   const handleTakeAll = useCallback(() => {
     setIsBulk(false);
     const cards = revealCards;
