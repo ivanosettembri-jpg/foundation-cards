@@ -1950,7 +1950,11 @@ function AuthButton({ user, onLogin, onLogout }) {
   const [debug, setDebug] = React.useState("checking...");
   React.useEffect(() => {
     if (window._fbAuth) { setFbReady(true); setDebug("ready"); return; }
-    setDebug("waiting for firebase...");
+    // Check if the API key was injected
+    const meta = document.querySelector('meta[name="fb-api-key"]');
+    const keyInMeta = meta?.content;
+    const placeholder = "__FIREBASE_API_KEY__";
+    setDebug("key=" + (keyInMeta ? (keyInMeta === placeholder ? "NOT_INJECTED" : keyInMeta.slice(0,8)+"...") : "NO_META_TAG"));
     const t = setInterval(() => {
       if (window._fbAuth) { setFbReady(true); setDebug("ready"); clearInterval(t); }
     }, 200);
