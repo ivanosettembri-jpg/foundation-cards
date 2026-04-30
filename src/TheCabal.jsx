@@ -1,5 +1,21 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 
+// Show uncaught errors on screen in production
+if (typeof window !== "undefined") {
+  window.addEventListener("error", e => {
+    const div = document.createElement("div");
+    div.style.cssText = "position:fixed;top:0;left:0;right:0;background:#1a0000;color:#ff6b6b;padding:12px;font-family:monospace;font-size:11px;z-index:99999;white-space:pre-wrap;word-break:break-all;border-bottom:1px solid #e74c3c";
+    div.textContent = "ERROR: " + e.message + "\n" + (e.filename||"") + ":" + e.lineno;
+    document.body?.prepend(div);
+  });
+  window.addEventListener("unhandledrejection", e => {
+    const div = document.createElement("div");
+    div.style.cssText = "position:fixed;top:0;left:0;right:0;background:#1a0000;color:#ff6b6b;padding:12px;font-family:monospace;font-size:11px;z-index:99999;white-space:pre-wrap;word-break:break-all;border-bottom:1px solid #e74c3c";
+    div.textContent = "PROMISE ERROR: " + String(e.reason);
+    document.body?.prepend(div);
+  });
+}
+
 /* ══════════════════════════════════════════════════════
    IPFS GATEWAY ROTATION
    Tries gateways in order on error. w3s.link and
@@ -5090,6 +5106,22 @@ function MissionsView({ st, save, notify, uniqueCards }) {
   );
 }
 
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(e) { return { error: e }; }
+  render() {
+    if (this.state.error) return (
+      <div style={{background:"#0a0a0a",color:"#e74c3c",padding:20,fontFamily:"monospace",fontSize:11,
+        position:"fixed",inset:0,overflow:"auto",zIndex:99999,whiteSpace:"pre-wrap",wordBreak:"break-all"}}>
+        <div style={{color:"#fff",fontSize:14,marginBottom:12}}>⚠ App Error — copy this and send it</div>
+        <div style={{color:"#e74c3c"}}>{String(this.state.error)}</div>
+        <div style={{color:"#888",marginTop:12,fontSize:10}}>{this.state.error?.stack}</div>
+      </div>
+    );
+    return this.props.children;
+  }
+}
+
 export default function TheCabal() {
-  return <TheCabalApp/>;
+  return <ErrorBoundary><TheCabalApp/></ErrorBoundary>;
 }
