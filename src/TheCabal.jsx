@@ -104,26 +104,38 @@ async function getAlchemyThumb(collection, tokenId) {
 const LOADING_PHRASES = ["loading..."];
 
 function CardImage({ card, style }) {
+  // Initialize immediately from cache — avoids blank frame if pre-fetch already ran
   const [src, setSrc] = React.useState(() => {
     if (!card.image_cid || !card.collection || !card.token_id) return null;
     const key = `${card.collection}_${card.token_id}`;
     return _alchemyCache[key] || null;
   });
-  const [imgReady, setImgReady] = React.useState(false);
   const [errStep, setErrStep] = React.useState(0);
+  const [loading, setLoading] = React.useState(!src);
+  const phrase = React.useRef(LOADING_PHRASES[Math.floor(Math.random()*LOADING_PHRASES.length)]);
 
   React.useEffect(() => {
     if (!card.image_cid) return;
     let cancelled = false;
-    setImgReady(false);
-    const tryAlchemy = (attempt) =>
-      getAlchemyThumb(card.collection, card.token_id).then(url => {
-        if (cancelled) return;
-        if (url) { setSrc(url); return; }
-        if (attempt < 2) setTimeout(() => { if (!cancelled) tryAlchemy(attempt+1); }, 3000);
-        else if (card.image_cid) setSrc(`https://w3s.link/ipfs/${card.image_cid}/nft.png`);
-      }).catch(() => { if (!cancelled && card.image_cid) setSrc(`https://w3s.link/ipfs/${card.image_cid}/nft.png`); });
-    tryAlchemy(1);
+    if (card.collection && card.token_id) {
+      const tryAlchemy = (attempt) =>
+        getAlchemyThumb(card.collection, card.token_id).then(url => {
+          if (cancelled) return;
+          if (url) { setLoading(false); setSrc(url); return; }
+          // Alchemy had no image — retry once after 3s, then fall back to IPFS
+          if (attempt < 2) {
+            setTimeout(() => { if (!cancelled) tryAlchemy(attempt + 1); }, 3000);
+          } else {
+            setLoading(false);
+            if (card.image_cid) setSrc(`https://w3s.link/ipfs/${card.image_cid}/nft.png`);
+          }
+        }).catch(() => {
+          if (!cancelled) { setLoading(false); if (card.image_cid) setSrc(`https://w3s.link/ipfs/${card.image_cid}/nft.png`); }
+        });
+      tryAlchemy(1);
+    } else {
+      if (card.image_cid) setSrc(`https://w3s.link/ipfs/${card.image_cid}/nft.png`);
+    }
     return () => { cancelled = true; };
   }, [card.id]);
 
@@ -131,39 +143,40 @@ function CardImage({ card, style }) {
     `https://w3s.link/ipfs/${card.image_cid}`,
     `https://nftstorage.link/ipfs/${card.image_cid}/nft.png`,
     `https://nftstorage.link/ipfs/${card.image_cid}`,
+    `https://dweb.link/ipfs/${card.image_cid}/nft.png`,
   ] : [];
 
-  return (
-    <div style={{...style, position:"relative", overflow:"hidden"}}>
-      {!imgReady && (
-        <div style={{position:"absolute",inset:0,background:"#0a0a0a",
-          display:"flex",alignItems:"center",justifyContent:"center",zIndex:1}}>
-          <div style={{fontFamily:"'DM Mono',monospace",fontSize:7,color:"#1e1e1e",
-            letterSpacing:1.5,animation:"pulse 1.8s ease-in-out infinite"}}>
-            loading...
-          </div>
+  if (!src) {
+    // Show loading placeholder — never show blank card
+    return (
+      <div style={{...style, display:"flex", alignItems:"center", justifyContent:"center",
+        background:"#080808", flexDirection:"column", gap:6}}>
+        <div style={{
+          fontFamily:"'DM Mono',monospace", fontSize:7, color:"#252525",
+          letterSpacing:1.5, textAlign:"center", padding:"0 8px",
+          animation:"pulse 1.8s ease-in-out infinite",
+        }}>
+          {phrase.current}
         </div>
-      )}
-      {src && (
-        <img
-          src={src} alt=""
-          onLoad={() => setImgReady(true)}
-          onError={() => {
-            setImgReady(false);
-            const next = fallbacks[errStep];
-            if (next) { setErrStep(s=>s+1); setSrc(next); }
-            else setSrc(null);
-          }}
-          style={{...style, position:"absolute", inset:0, margin:0,
-            width:"100%", height:"100%",
-            opacity: imgReady ? 1 : 0 }}
-        />
-      )}
-    </div>
+      </div>
+    );
+  }
+  return (
+    <img
+      loading="lazy"
+      src={src}
+      alt=""
+      onError={() => {
+        const next = fallbacks[errStep];
+        if (next) { setErrStep(s => s+1); setSrc(next); }
+        else setSrc(null);
+      }}
+      style={style}
+    />
   );
 }
 
-
+// Keep for backward compat (download function etc)
 function ipfsUrl(cid) {
   return cid ? `https://w3s.link/ipfs/${cid}/nft.png` : null;
 }
