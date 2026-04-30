@@ -2187,6 +2187,15 @@ function TheCabalApp() {
     setNotif(msg); setTimeout(()=>setNotif(null), 2600);
   }, []);
 
+  // Pre-draw next pack and prefetch all 5 images immediately
+  const prepareNextPack = useCallback(() => {
+    if (!ACCOUNTS.length) return;
+    const cards = drawPack(false);
+    setNextPackCards(cards);
+    cards.filter(c => c.collection && c.token_id)
+      .forEach(c => getAlchemyThumb(c.collection, c.token_id).catch(()=>{}));
+  }, []);
+
   const checkAchi = useCallback((coll,total,prev,burnTotal) => {
     const a={...prev}, u=new Set(coll.map(c=>c.id));
     const rar = id => ACCOUNTS_BY_ID[id]?.rarity;
@@ -2287,6 +2296,7 @@ function TheCabalApp() {
 
   /* take all after reveal */
   const handleTakeAll = useCallback(() => {
+    prepareNextPack(); // pre-draw & pre-fetch next pack NOW
     setIsBulk(false);
     const cards = revealCards;
     // Store only {id, _uid} — full card data is always reconstructed from ACCOUNTS_BY_ID
