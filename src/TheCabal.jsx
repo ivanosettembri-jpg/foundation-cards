@@ -104,38 +104,24 @@ async function getAlchemyThumb(collection, tokenId) {
 const LOADING_PHRASES = ["loading..."];
 
 function CardImage({ card, style }) {
-  // Initialize immediately from cache — avoids blank frame if pre-fetch already ran
   const [src, setSrc] = React.useState(() => {
     if (!card.image_cid || !card.collection || !card.token_id) return null;
     const key = `${card.collection}_${card.token_id}`;
     return _alchemyCache[key] || null;
   });
   const [errStep, setErrStep] = React.useState(0);
-  const [loading, setLoading] = React.useState(!src);
-  const phrase = React.useRef(LOADING_PHRASES[Math.floor(Math.random()*LOADING_PHRASES.length)]);
 
   React.useEffect(() => {
     if (!card.image_cid) return;
     let cancelled = false;
-    if (card.collection && card.token_id) {
-      const tryAlchemy = (attempt) =>
-        getAlchemyThumb(card.collection, card.token_id).then(url => {
-          if (cancelled) return;
-          if (url) { setLoading(false); setSrc(url); return; }
-          // Alchemy had no image — retry once after 3s, then fall back to IPFS
-          if (attempt < 2) {
-            setTimeout(() => { if (!cancelled) tryAlchemy(attempt + 1); }, 3000);
-          } else {
-            setLoading(false);
-            if (card.image_cid) setSrc(`https://w3s.link/ipfs/${card.image_cid}/nft.png`);
-          }
-        }).catch(() => {
-          if (!cancelled) { setLoading(false); if (card.image_cid) setSrc(`https://w3s.link/ipfs/${card.image_cid}/nft.png`); }
-        });
-      tryAlchemy(1);
-    } else {
-      if (card.image_cid) setSrc(`https://w3s.link/ipfs/${card.image_cid}/nft.png`);
-    }
+    const tryAlchemy = (attempt) =>
+      getAlchemyThumb(card.collection, card.token_id).then(url => {
+        if (cancelled) return;
+        if (url) { setSrc(url); return; }
+        if (attempt < 2) setTimeout(() => { if (!cancelled) tryAlchemy(attempt+1); }, 3000);
+        else if (card.image_cid) setSrc(`https://w3s.link/ipfs/${card.image_cid}/nft.png`);
+      }).catch(() => { if (!cancelled && card.image_cid) setSrc(`https://w3s.link/ipfs/${card.image_cid}/nft.png`); });
+    tryAlchemy(1);
     return () => { cancelled = true; };
   }, [card.id]);
 
@@ -143,38 +129,21 @@ function CardImage({ card, style }) {
     `https://w3s.link/ipfs/${card.image_cid}`,
     `https://nftstorage.link/ipfs/${card.image_cid}/nft.png`,
     `https://nftstorage.link/ipfs/${card.image_cid}`,
-    `https://dweb.link/ipfs/${card.image_cid}/nft.png`,
   ] : [];
 
-  if (!src) {
-    // Show loading placeholder — never show blank card
-    return (
-      <div style={{...style, display:"flex", alignItems:"center", justifyContent:"center",
-        background:"#080808", flexDirection:"column", gap:6}}>
-        <div style={{
-          fontFamily:"'DM Mono',monospace", fontSize:7, color:"#252525",
-          letterSpacing:1.5, textAlign:"center", padding:"0 8px",
-          animation:"pulse 1.8s ease-in-out infinite",
-        }}>
-          {phrase.current}
-        </div>
-      </div>
-    );
-  }
+  if (!src) return null;
   return (
-    <img
-      loading="lazy"
-      src={src}
-      alt=""
+    <img src={src} alt=""
       onError={() => {
         const next = fallbacks[errStep];
-        if (next) { setErrStep(s => s+1); setSrc(next); }
+        if (next) { setErrStep(s=>s+1); setSrc(next); }
         else setSrc(null);
       }}
       style={style}
     />
   );
 }
+
 
 // Keep for backward compat (download function etc)
 function ipfsUrl(cid) {
@@ -1929,13 +1898,13 @@ function LoadingScreen({ progress, error, onFile }) {
       justifyContent:"center",background:"#080808",padding:24,gap:12}}>
       <div style={{...mono,fontSize:9,color:"#555",letterSpacing:3}}>networked.cards</div>
       <div style={{...mono,fontSize:7,color:"#333",letterSpacing:2}}>
-        LOADING FOUNDATION {progress < 70 ? "↓" : progress < 90 ? "◌" : "◉"} {progress}%
+        LOADING {progress}%
       </div>
       <div style={{width:200,height:1,background:"#1a1a1a",borderRadius:1,overflow:"hidden"}}>
         <div style={{width:progress+"%",height:"100%",background:"#2a2a2a",transition:"width .4s ease"}}/>
       </div>
       <div style={{...mono,fontSize:6,color:"#222",letterSpacing:1}}>
-        {progress < 70 ? "downloading 343k tokens..." : progress < 90 ? "parsing cards..." : "building pool..."}
+        {progress < 70 ? "loading..." : progress < 90 ? "almost ready..." : "done"}
       </div>
     </div>
   );
@@ -2189,29 +2158,18 @@ function TheCabalApp() {
 
   // Pre-draw next pack and prefetch all 5 images immediately
   const _preloadImgs = React.useRef([]);
-  const _preloadReady = React.useRef(Promise.resolve()); // resolves when all images loaded
-
   const prepareNextPack = useCallback(() => {
     if (!ACCOUNTS.length) return;
     const cards = drawPack(false);
     setNextPackCards(cards);
-    // Fetch URL then download actual image bytes — store promise of completion
-    const loadPromises = cards.filter(c => c.collection && c.token_id).map(c =>
+    cards.filter(c => c.collection && c.token_id).forEach(c => {
       getAlchemyThumb(c.collection, c.token_id).then(url => {
         if (!url) return;
-        return new Promise(resolve => {
-          const img = new window.Image();
-          img.onload = resolve;
-          img.onerror = resolve; // resolve even on error so we don't block
-          img.src = url;
-          _preloadImgs.current = [..._preloadImgs.current.slice(-20), img];
-        });
-      }).catch(()=>{})
-    );
-    _preloadReady.current = Promise.race([
-      Promise.all(loadPromises),
-      new Promise(res => setTimeout(res, 5000)), // max 5s wait
-    ]);
+        const img = new window.Image();
+        img.src = url;
+        _preloadImgs.current = [..._preloadImgs.current.slice(-20), img];
+      }).catch(()=>{});
+    });
   }, []);
 
   const checkAchi = useCallback((coll,total,prev,burnTotal) => {
@@ -2511,7 +2469,6 @@ function TheCabalApp() {
                   {luckyOpen&&!isBulk ? "✦ LUCKY PACK — " : ""}
                   {isBulk ? `x10 OPENING · ${revealCards.length} CARDS` : "SWIPE TO REVEAL"}
                 </div>
-
 
                 {!revealDone ? (
                   /* ── Swipe stack — Take All BELOW ── */
