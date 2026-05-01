@@ -13389,6 +13389,32 @@ function CardFace({ card, dispW, holoPos={x:0.5,y:0.5}, holoActive=false, allowT
         }}/>
       )}
 
+      {/* SR rarity: silver prismatic shimmer on front — elegant, always-on */}
+      {card.rarity === "SR" && (<>
+        {/* Layer 1: directional silver stripe */}
+        <div style={{
+          position:"absolute", inset:0, zIndex:4, pointerEvents:"none",
+          borderRadius:7, overflow:"hidden",
+          background:`linear-gradient(${(120 + holoPos.x*50).toFixed(0)}deg, transparent 20%, rgba(200,210,255,0.06) 38%, rgba(255,255,255,${holoActive?0.20:0.10}) 50%, rgba(200,210,255,0.06) 62%, transparent 80%)`,
+          mixBlendMode:"screen", transition:"background 0.08s ease",
+        }}/>
+        {/* Layer 2: soft radial glare spot */}
+        <div style={{
+          position:"absolute", inset:0, zIndex:5, pointerEvents:"none",
+          borderRadius:7, overflow:"hidden",
+          background:`radial-gradient(ellipse 50% 40% at ${(holoPos.x*100).toFixed(1)}% ${(holoPos.y*100).toFixed(1)}%, rgba(255,255,255,${holoActive?0.18:0.06}) 0%, transparent 70%)`,
+          mixBlendMode:"screen", transition:"background 0.1s ease",
+        }}/>
+        {/* Layer 3: subtle rainbow tint sweep */}
+        <div style={{
+          position:"absolute", inset:0, zIndex:6, pointerEvents:"none",
+          borderRadius:7, overflow:"hidden",
+          background:`linear-gradient(${(200 + holoPos.x*60 + holoPos.y*20).toFixed(0)}deg, rgba(180,160,255,0.04) 0%, rgba(160,220,255,0.06) 33%, rgba(200,255,200,0.04) 66%, rgba(255,200,180,0.05) 100%)`,
+          mixBlendMode:"screen", opacity: holoActive ? 1 : 0.5,
+          transition:"opacity 0.3s ease",
+        }}/>
+      </>)}
+
             {card.rarity === "UR" && (()=>{
         const px    = (holoPos.x * 100).toFixed(1);
         const py    = (holoPos.y * 100).toFixed(1);
@@ -13740,7 +13766,26 @@ function FlippableCard({ card, dispW=120, noFlipOnClick=false, allowTilt=false }
                 onMouseLeave={e=>{e.currentTarget.style.background='rgba(255,255,255,0.07)';}}
               >view full resolution ↗</a>
             )}
-            {card.handle ? (
+            {card.rarity === "SR" ? (
+            (() => {
+              const slug = (card.name||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+              const srUrl = `https://superrare.com/${card.collection}/${slug}-${card.token_id}`;
+              return (
+                <a href={srUrl} target="_blank" rel="noopener noreferrer"
+                  onClick={e=>e.stopPropagation()}
+                  style={{
+                    fontFamily:"'DM Mono',monospace",fontSize:fontSize(.062),color:"rgba(255,255,255,0.85)",
+                    letterSpacing:.5,textDecoration:"none",border:"1px solid rgba(255,255,255,0.35)",
+                    borderRadius:4,padding:"4px 8px",background:"rgba(255,255,255,0.08)",
+                    textAlign:"center",transition:"background .15s",width:"100%",
+                    whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",
+                  }}
+                  onMouseEnter={e=>{e.currentTarget.style.background='rgba(255,255,255,0.18)';}}
+                  onMouseLeave={e=>{e.currentTarget.style.background='rgba(255,255,255,0.08)';}}
+                >view on superrare ↗</a>
+              );
+            })()
+          ) : card.handle ? (
             <a href={etherscanUrl} target="_blank" rel="noopener noreferrer"
               onClick={e=>e.stopPropagation()}
               style={{
@@ -15562,7 +15607,9 @@ function AutoClaimModal({ token, st, save, notify, onDone }) {
     }).then(r=>r.json()).then(data => {
       if (data.error) { setStatus("error"); setError(data.error); return; }
       const card = data.cardData;
-      const newEntry = { id:card.id, _uid: card._uid || `${card.id}_${Date.now()}`, tradedAt: Date.now() };
+      const newEntry = { id:card.id, _uid: card._uid || `${card.id}_${Date.now()}`,
+                         tradedAt: Date.now(), _pulledAt: card._pulledAt || null,
+                         ...(card.image_url ? { image_url: card.image_url } : {}) };
       const exA = {...(st.achievements||{}), exRecvC:true};
       if(card.rarity==="R"||card.rarity==="UR"||card.rarity==="LR") exA.exRecvR=true;
       save({ collection:[...st.collection, newEntry], achievements:exA });
@@ -15643,7 +15690,8 @@ function ExchangeView({ st, save, notify, uniqueCards, authUser }) {
           cardData: { id: selected.id, name: selected.name, rarity: selected.rarity,
                       handle: selected.handle, cat: selected.cat, image_cid: selected.image_cid,
                       creator: selected.creator, collection: selected.collection,
-                      token_id: selected.token_id, bio: selected.bio,
+                      token_id: selected.token_id, bio: selected.bio, image_url: selected.image_url || null,
+                      _pulledAt: selected._pulledAt || null,
                       _uid: `${selected.id}_${Date.now()}` }
         })
       });
@@ -15755,7 +15803,9 @@ function ExchangeView({ st, save, notify, uniqueCards, authUser }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Token invalid or already used");
       const card = data.cardData;
-      const newEntry = { id: card.id, _uid: card._uid || `${card.id}_${Date.now()}`, tradedAt: Date.now() };
+      const newEntry = { id: card.id, _uid: card._uid || `${card.id}_${Date.now()}`,
+                         tradedAt: Date.now(), _pulledAt: card._pulledAt || null,
+                         ...(card.image_url ? { image_url: card.image_url } : {}) };
       const exA2 = {...(st.achievements||{}), exRecvC:true};
       if(card.rarity==="R"||card.rarity==="UR"||card.rarity==="LR") exA2.exRecvR=true;
       save({ collection: [...st.collection, newEntry], achievements: exA2 });
@@ -16260,7 +16310,7 @@ function CollectionView({ unique, notify, favoritesArr, onToggleFav }) {
         }}>♥</button>
       </div>
 
-      {!isFiltering && unique.length>0 && (
+      {!isFiltering && mainCards.length>0 && (
         <div style={{fontSize:7,color:"#2a2a2a",marginBottom:10,letterSpacing:.5}}>
           click or tap a card to expand
         </div>
@@ -16268,12 +16318,12 @@ function CollectionView({ unique, notify, favoritesArr, onToggleFav }) {
 
       {/* ── Full grid: owned cards only — paginated to prevent mobile crash ── */}
       {!isFiltering && (
-        unique.length === 0
+        mainCards.length === 0
           ? <div style={{textAlign:"center",color:"#2a2a2a",fontSize:9,padding:60,letterSpacing:1,fontFamily:"'DM Mono',monospace"}}>
               no cards yet — open some packs
             </div>
           : (() => {
-              const sorted = [...unique].sort((a,b) => {
+              const sorted = [...mainCards].sort((a,b) => {
                 const rd = RARITY_ORDER.indexOf(a.rarity) - RARITY_ORDER.indexOf(b.rarity);
                 if (rd !== 0) return rd;
                 return a.name.localeCompare(b.name);
