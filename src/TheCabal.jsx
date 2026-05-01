@@ -12743,25 +12743,30 @@ const LOADING_PHRASES = ["loading..."];
 
 function CardImage({ card, style }) {
   const [src, setSrc] = React.useState(() => {
-    if (!card.image_cid || !card.collection || !card.token_id) return null;
+    // SR cards store their image_url directly in the card object
+    if (card.image_url) return card.image_url;
+    if (!card.collection || !card.token_id) return null;
     const key = `${card.collection}_${card.token_id}`;
     return _alchemyCache[key] || null;
   });
   const [errStep, setErrStep] = React.useState(0);
 
   React.useEffect(() => {
-    if (!card.image_cid) return;
+    // SR cards: image_url is set directly, no need to fetch
+    if (card.image_url) { setSrc(card.image_url); return; }
+    if (!card.image_cid && !card.collection) return;
+    // For SR cards without image_url yet, or any card: try Alchemy
+    if (!card.collection || !card.token_id) return;
     let cancelled = false;
     const tryAlchemy = (attempt) =>
       getAlchemyThumb(card.collection, card.token_id).then(url => {
         if (cancelled) return;
         if (url) { setSrc(url); return; }
         if (attempt < 2) setTimeout(() => { if (!cancelled) tryAlchemy(attempt+1); }, 3000);
-        else { /* no Alchemy image, skip IPFS to avoid cert errors */ }
-      }).catch(() => { /* Alchemy fetch failed */ });
+      }).catch(() => {});
     tryAlchemy(1);
     return () => { cancelled = true; };
-  }, [card.id]);
+  }, [card.id, card.image_url]);
 
   const fallbacks = card.image_cid ? [
     `https://w3s.link/ipfs/${card.image_cid}`,
@@ -13312,7 +13317,7 @@ function CardFace({ card, dispW, holoPos={x:0.5,y:0.5}, holoActive=false, allowT
   // New layout — art fills most of card, no bio section
   // header: 26px | art: 332px | info: 68px | footer: 22px  (total ~448 / 470)
   // Legendary: full-art — art fills entire card, text overlays gradient at bottom
-  const isFullArt = isLR;
+  const isFullArt = isLR || card.rarity === "SR";
   const HEADER_H = 26, FOOTER_H = 22;
   const ART_TOP   = isFullArt ? 0 : 26;
   const ART_H_PX  = isFullArt ? 470 : 262;
@@ -13721,19 +13726,19 @@ function FlippableCard({ card, dispW=120, noFlipOnClick=false, allowTilt=false }
           <div style={{width:"60%",height:1,background:"rgba(255,255,255,0.2)",flexShrink:0}}/>
           {/* Buttons: artwork + etherscan */}
           <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6,width:"90%"}}>
-            {card.image_cid && (
-              <a href={`https://ipfs.io/ipfs/${card.image_cid}`} target="_blank" rel="noopener noreferrer"
+            {(card.image_cid || card.image_url) && (
+              <a href={card.image_url || `https://ipfs.io/ipfs/${card.image_cid}`} target="_blank" rel="noopener noreferrer"
                 onClick={e=>e.stopPropagation()}
                 style={{
-                  fontFamily:"'DM Mono',monospace",fontSize:fontSize(.058),color:"rgba(255,255,255,0.7)",
-                  letterSpacing:.5,textDecoration:"none",border:"1px solid rgba(255,255,255,0.25)",
-                  borderRadius:4,padding:"4px 8px",background:"rgba(255,255,255,0.07)",
+                  fontFamily:"'DM Mono',monospace",fontSize:fontSize(.052),color:"rgba(255,255,255,0.7)",
+                  letterSpacing:.3,textDecoration:"none",border:"1px solid rgba(255,255,255,0.25)",
+                  borderRadius:4,padding:"3px 7px",background:"rgba(255,255,255,0.07)",
                   textAlign:"center",transition:"background .15s",width:"100%",
                   whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",
                 }}
                 onMouseEnter={e=>{e.currentTarget.style.background='rgba(255,255,255,0.15)';}}
                 onMouseLeave={e=>{e.currentTarget.style.background='rgba(255,255,255,0.07)';}}
-              >view full resolution artwork ↗</a>
+              >view full resolution ↗</a>
             )}
             {card.handle ? (
             <a href={etherscanUrl} target="_blank" rel="noopener noreferrer"
@@ -15117,13 +15122,14 @@ function TheCabalApp() {
           cat: "Manfredi Caracciolo", bio: "",
           collection: SR_CONTRACT, token_id: tokenId,
           handle: null, image_cid: null, creator: "manfredicaracciolo.eth",
+          image_url: c.image_url || null,
         };
-        // Trigger Alchemy fetch in background so image loads
-        getAlchemyThumb(SR_CONTRACT, tokenId);
       }
       const acc = ACCOUNTS_BY_ID[c.id];
       if (!acc) return; // skip unknown ids (e.g. old accounts that were removed)
-      if (!m[c.id]) m[c.id] = { ...acc, count: 0, _pulledAt: c._pulledAt || null };
+      // Merge image_url from collection entry (persisted across reload)
+      const accWithImg = c.image_url ? { ...acc, image_url: c.image_url } : acc;
+      if (!m[c.id]) m[c.id] = { ...accWithImg, count: 0, _pulledAt: c._pulledAt || null };
       else if (c._pulledAt && (!m[c.id]._pulledAt || c._pulledAt < m[c.id]._pulledAt)) {
         m[c.id]._pulledAt = c._pulledAt; // keep earliest pull date
       }
@@ -15678,7 +15684,6 @@ function ExchangeView({ st, save, notify, uniqueCards, authUser }) {
 
         const existing = new Set(st.collection.map(c => c.id));
         const newEntries = [];
-        const previewCard = null;
         let firstCard = null;
 
         for (const nft of nfts) {
@@ -15686,7 +15691,7 @@ function ExchangeView({ st, save, notify, uniqueCards, authUser }) {
           const id = `sr_${tokenId}`;
           if (existing.has(id)) continue;
 
-          // Cache the image URL in Alchemy cache so CardImage finds it
+          // Persist image_url in the collection entry so it survives page reload
           const imgUrl = nft.image?.cachedUrl || nft.image?.pngUrl || nft.image?.originalUrl || null;
           if (imgUrl) _alchemyCache[`${SR_CONTRACT}_${tokenId}`] = imgUrl;
 
@@ -15700,12 +15705,14 @@ function ExchangeView({ st, save, notify, uniqueCards, authUser }) {
             token_id: String(tokenId),
             handle: null,
             image_cid: null,
+            image_url: imgUrl,  // persisted — survives reload
             creator: "manfredicaracciolo.eth",
             _pulledAt: Date.now(),
             _uid: `${id}_${Date.now()}`,
           };
           if (!firstCard) firstCard = card;
-          newEntries.push({ id, _uid: card._uid, _pulledAt: card._pulledAt });
+          // Store image_url in collection entry (not just full card) so uniqueCards can pass it through
+          newEntries.push({ id, _uid: card._uid, _pulledAt: card._pulledAt, image_url: imgUrl });
         }
 
         if (!newEntries.length) {
@@ -16148,15 +16155,20 @@ function CollectionView({ unique, notify, favoritesArr, onToggleFav }) {
   const [modalCard, setModalCard] = useState(null);
   const [search,setSearch] = useState("");
   const [collPage, setCollPage] = useState(1);
+  const [collTab, setCollTab] = useState("main"); // "main" | "sr"
   const favorites = useMemo(() => new Set(favoritesArr || []), [favoritesArr]);
 
   // With 343k cards we never render placeholders — collection shows only owned cards
+
+  // Separate SR cards from normal collection
+  const srCards = useMemo(() => unique.filter(c => c.rarity === "SR"), [unique]);
+  const mainCards = useMemo(() => unique.filter(c => c.rarity !== "SR"), [unique]);
 
   // When search or favorites active, show only matching collected cards
   const isFiltering = search.trim() !== "" || showFavOnly;
 
   const filteredCollected = useMemo(() => {
-    let arr = unique;
+    let arr = mainCards;
     if (showFavOnly) arr = arr.filter(c => favorites.has(c.id));
     if (search) {
       const q = search.toLowerCase();
@@ -16187,14 +16199,53 @@ function CollectionView({ unique, notify, favoritesArr, onToggleFav }) {
   return (
     <div style={{animation:"slideUp .3s ease"}}>
       {modalCard && <CardModal card={modalCard} onClose={()=>setModalCard(null)} isFav={favorites.has(modalCard?.id)} onToggleFav={onToggleFav}/>}
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
         <div>
           <div style={{fontSize:8,color:"#555",letterSpacing:2}}>COLLECTION</div>
           <div style={{fontSize:22,marginTop:2}}>
-            {unique.length}<span style={{fontSize:9,color:"#444",marginLeft:5}}>/ {ACCOUNTS.length.toLocaleString()} total</span>
+            {mainCards.length}<span style={{fontSize:9,color:"#444",marginLeft:5}}>/ {ACCOUNTS.length.toLocaleString()} total</span>
           </div>
         </div>
       </div>
+
+      {/* Sub-tabs: main collection / secret rare */}
+      <div style={{display:"flex",gap:4,marginBottom:14}}>
+        {[["main","cards"],["sr","secret rare"]].map(([k,l]) => {
+          const hasSR = srCards.length > 0;
+          if (k==="sr" && !hasSR) return null;
+          return (
+            <button key={k} onClick={()=>setCollTab(k)} style={{
+              fontFamily:"'DM Mono',monospace",fontSize:8,letterSpacing:1.5,
+              padding:"5px 12px",borderRadius:3,cursor:"pointer",
+              background:collTab===k?"#1a1a1a":"transparent",
+              border:`1px solid ${collTab===k?"#444":"#1a1a1a"}`,
+              color:collTab===k?(k==="sr"?RARITIES.SR.accent:"#d0d0d0"):"#333",
+              transition:"all .15s",textTransform:"uppercase",
+            }}>{l}{k==="sr"&&<span style={{marginLeft:5,opacity:.5}}>{srCards.length}</span>}</button>
+          );
+        })}
+      </div>
+
+      {/* ── SR tab ── */}
+      {collTab === "sr" && (
+        <div>
+          {srCards.length === 0 ? (
+            <div style={{textAlign:"center",color:"#2a2a2a",fontSize:9,padding:60,letterSpacing:1,fontFamily:"'DM Mono',monospace"}}>
+              no secret rare cards yet
+            </div>
+          ) : (
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:10}}>
+              {srCards.map(card => (
+                <LazyCard key={card._uid || card.id} card={card} dispW={CARD_W} notify={notify} count={card.count}
+                  onCardClick={setModalCard} isFav={(favoritesArr||[]).includes(card.id)} onToggleFav={onToggleFav}/>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Main collection tab ── */}
+      {collTab === "main" && (<>
 
       {/* ── Filter row ── */}
       <div style={{display:"flex",gap:6,marginBottom:12}}>
@@ -16261,6 +16312,7 @@ function CollectionView({ unique, notify, favoritesArr, onToggleFav }) {
             </div>
       )}
 
+      </>)}  {/* end collTab === "main" */}
     </div>
   );
 }
