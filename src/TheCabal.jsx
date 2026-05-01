@@ -39,30 +39,21 @@ async function fetchSaleRarity(card, onRarityUpdate, onSaleLog) {
   if (_saleFetched.has(key)) return;
   _saleFetched.add(key);
   try {
-    const url = `https://eth-mainnet.g.alchemy.com/nft/v3/${ALCHEMY_KEY}/getNFTSales` +
-      `?contractAddress=${card.collection}&tokenId=${card.token_id}&order=desc&limit=5`;
-    const r = await fetch(url);
+    // Reservoir API — covers Foundation, OpenSea, Blur
+    const url = `https://api.reservoir.tools/tokens/v7?tokens=${card.collection}:${card.token_id}&includeLastSale=true`;
+    const r = await fetch(url, { headers: { "x-api-key": "demo" } });
     if (!r.ok) return;
     const data = await r.json();
-    const sales = data?.nftSales || [];
-    if (!sales.length) return;
-    // Find highest sale in ETH (sellerFee is in wei)
-    // Alchemy returns sellerFee in wei, or taker/maker price in various formats
-    const maxWei = Math.max(...sales.map(s => {
-      const raw = s.sellerFee?.amount || s.taker?.price || s.maker?.price ||
-                  s.sellerFee?.amount || 0;
-      return parseInt(raw) || 0;
-    }));
-    const maxEth = maxWei / 1e18;
-    console.log("Sale found:", maxEth.toFixed(4), "ETH for", card.collection, card.token_id);
-    if (onSaleLog) onSaleLog(card.name, maxEth);
+    const token = data?.tokens?.[0]?.token;
+    const lastSaleEth = token?.lastSale?.price?.amount?.native || 0;
+    if (!lastSaleEth) return;
+    if (onSaleLog) onSaleLog(card.name, lastSaleEth);
     const newRarity =
-      maxEth >= 10  ? "LR" :
-      maxEth >= 2   ? "UR" :
-      maxEth >= 0.5 ? "R"  : null;
-    // Note: C = 0–0.49 ETH (no upgrade needed, it's the default)
+      lastSaleEth >= 10  ? "LR" :
+      lastSaleEth >= 2   ? "UR" :
+      lastSaleEth >= 0.5 ? "R"  : null;
     if (newRarity && RARITY_ORDER.indexOf(newRarity) < RARITY_ORDER.indexOf(card.rarity)) {
-      onRarityUpdate(card.id, newRarity, maxEth);
+      onRarityUpdate(card.id, newRarity, lastSaleEth);
     }
   } catch {}
 }
@@ -938,7 +929,7 @@ function FlippableCard({ card, dispW=120, noFlipOnClick=false, allowTilt=false }
   const r = RARITIES[card.rarity];
   const dispH = Math.round(dispW*(470/300));
   const isLR = card.rarity === "LR";
-  const twitterUrl = `https://etherscan.io/address/${card.creator || card.collection}`;
+  const openseaUrl = card.collection && card.token_id ? `https://opensea.io/assets/ethereum/${card.collection}/${card.token_id}` : null;
   const serial = SERIAL_MAP[card.id];
 
   // Track pointer for ALL cards — holo intensity set in CardFace by rarity
@@ -1050,7 +1041,7 @@ function FlippableCard({ card, dispW=120, noFlipOnClick=false, allowTilt=false }
           </div>
           <div style={{width:"60%",height:1,background:"rgba(255,255,255,0.2)",flexShrink:0}}/>
           {card.handle ? (
-            <a href={twitterUrl} target="_blank" rel="noopener noreferrer"
+            <a href={openseaUrl} target="_blank" rel="noopener noreferrer"
               onClick={e=>e.stopPropagation()}
               style={{
                 fontFamily:"'DM Mono',monospace",fontSize:fontSize(.065),color:"rgba(255,255,255,0.85)",
@@ -1832,7 +1823,20 @@ async function loadFoundationPool(onProgress) {
       id:       r.collection.slice(-8) + "_" + r.token_id,
       handle:   r.creator ? r.creator.slice(0,6) + "..." + r.creator.slice(-4) : (r.collection ? r.collection.slice(0,6) + "..." + r.collection.slice(-4) : ""),
       name:     "FND #" + String(idx+1).padStart(6,"0"),
-      rarity:   n >= 100 ? "LR" : n >= 30 ? "UR" : n >= 8 ? "R" : "C",
+      rarity:   (() => {
+        // FND shared contract: use sequential token_id as rarity signal
+        // Early mints are historically significant and harder to get
+        const tid = parseInt(r.token_id) || 999999;
+        const isShared = r.collection?.toLowerCase() === "0x3b3ee1931dc30c1957379fac9aba94d1c48a5405";
+        if (isShared) {
+          if (tid <= 100)   return "LR";  // first 100 mints ever on Foundation
+          if (tid <= 1000)  return "UR";  // first 1000
+          if (tid <= 10000) return "R";   // first 10000
+          return "C";
+        }
+        // Non-shared (individual artist contracts): use creator frequency
+        return n >= 100 ? "LR" : n >= 30 ? "UR" : n >= 8 ? "R" : "C";
+      })(),
       cat:      "Foundation",
       bio:      "Foundation artist. " + n + " work" + (n>1?"s":"") + " on-chain.",
       image_cid: r.image_cid,
@@ -2629,7 +2633,7 @@ function CardModal({ card, onClose, isFav, onToggleFav }) {
     };
   }, [onClose]);
 
-  const twitterUrl = `https://etherscan.io/address/${card.creator || card.collection}`;
+  const openseaUrl = card.collection && card.token_id ? `https://opensea.io/assets/ethereum/${card.collection}/${card.token_id}` : null;
 
   return (
     <div
