@@ -2177,11 +2177,13 @@ function TheCabalApp() {
         });
       }).catch(()=>{})
     );
-    // Resolve after all images load or 6s max
+    // Resolve after all images decoded or 6s max
     _preloadDone.current = Promise.race([
       Promise.all(imgPromises),
       new Promise(res => setTimeout(res, 6000)),
     ]);
+    _wasPreloaded.current = true;
+    console.log("[prep] decode started for", cards.length, "cards");
   }, []);
 
   const checkAchi = useCallback((coll,total,prev,burnTotal) => {
@@ -2229,7 +2231,10 @@ function TheCabalApp() {
         const cards = nextPackCards || drawPack(luckyRef.current);
         pendingCardsRef.current = cards; // sync — available immediately in burst
         setRC(cards); // async — for UI
+        const wasPreloaded = _wasPreloaded.current;
         setNextPackCards(null);
+        _wasPreloaded.current = false;
+        pendingCardsRef._wasPreloaded = wasPreloaded; // pass to burst
         if (!nextPackCards) {
           // Not pre-fetched yet — start now
           cards.filter(c => c.collection && c.token_id)
@@ -2246,9 +2251,11 @@ function TheCabalApp() {
       const toLoad = pendingCardsRef.current || revealCards; // use ref for sync access
 
       // Use pre-decoded images from prepareNextPack, OR fetch+decode now
-      const waitForImages = nextPackCards
-        ? (_preloadDone.current || Promise.resolve()) // pre-fetched — just wait for decode
-        : Promise.race([                               // not pre-fetched — fetch now
+      const wasPreloaded = pendingCardsRef._wasPreloaded;
+      console.log("[burst] wasPreloaded:", wasPreloaded);
+      const waitForImages = wasPreloaded
+        ? (_preloadDone.current || Promise.resolve()) // pre-decoded — instant
+        : Promise.race([                              // fetch+decode now
             Promise.all(toLoad.filter(c=>c.collection&&c.token_id)
               .map(c=>getAlchemyThumb(c.collection,c.token_id).catch(()=>null))),
             new Promise(res=>setTimeout(res,5000))
