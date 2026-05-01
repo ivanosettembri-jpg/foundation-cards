@@ -13442,17 +13442,17 @@ function CardFace({ card, dispW, holoPos={x:0.5,y:0.5}, holoActive=false, allowT
       {/* Inner border */}
       <div style={{position:"absolute",inset:4,borderRadius:5,pointerEvents:"none",border:`0.5px solid ${r.color}30`,zIndex:14}}/>
 
-      {/* LR logo overlay — bottom-right corner */}
+      {/* LR logo overlay — top-right corner */}
       {isLR && (<>
-        {/* Radial gradient in bottom-right to darken art behind logo */}
+        {/* Radial gradient in top-right to darken art behind logo */}
         <div style={{
-          position:"absolute", bottom:0, right:0, zIndex:19, pointerEvents:"none",
+          position:"absolute", top:0, right:0, zIndex:19, pointerEvents:"none",
           width:"65%", height:"30%",
-          background:"radial-gradient(ellipse at 100% 100%, rgba(0,0,0,0.55) 0%, transparent 70%)",
-          borderBottomRightRadius:7,
+          background:"radial-gradient(ellipse at 100% 0%, rgba(0,0,0,0.55) 0%, transparent 70%)",
+          borderTopRightRadius:7,
         }}/>
         <div style={{
-          position:"absolute", bottom:fs(.035), right:fs(.035), zIndex:20,
+          position:"absolute", top:fs(.035), right:fs(.035), zIndex:20,
           pointerEvents:"none",
         }}>
           <img
@@ -14897,6 +14897,7 @@ function TheCabalApp() {
       // Cards already drawn during shaking phase for x1; x10 drawn earlier
       const drawnCards = null; // already set in shaking handler
       setRD(false);
+      setLoadMsg("loading");
       const toLoad = pendingCardsRef.current || revealCards; // use ref for sync access
 
       // Use pre-decoded images from prepareNextPack, OR fetch+decode now
@@ -15044,7 +15045,7 @@ function TheCabalApp() {
   const mins=Math.floor(regenS/60), secs=regenS%60;
   const timerStr=`${mins}:${String(secs).padStart(2,"0")}`;
   const timerPct=((PACK_REGEN-regenS)/PACK_REGEN)*100;
-  const navItems=[{k:"gacha",l:"GACHA"},{k:"collection",l:"COLLECTION"},{k:"missions",l:"MISSIONS"}];
+  const navItems=[{k:"gacha",l:"GACHA"},{k:"collection",l:"COLLECTION"},{k:"missions",l:"MISSIONS"},{k:"about",l:"ABOUT"}];
 
   return (
     <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",background:"#060606",
@@ -15153,6 +15154,20 @@ function TheCabalApp() {
               </div>
             )}
 
+            {/* ── Loading message between burst and reveal ── */}
+            {loadMsg && phase!=="revealing" && (
+              <div style={{
+                display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+                gap:8, paddingTop:24,
+                fontFamily:"'DM Mono',monospace",
+              }}>
+                <span style={{
+                  fontSize:9, letterSpacing:3, color:"#444", textTransform:"uppercase",
+                  animation:"pulse 1s ease-in-out infinite",
+                }}>loading</span>
+              </div>
+            )}
+
             {/* ── Swipe stack reveal ── */}
             {phase==="revealing" && revealCards.length>0 && (
               <div style={{animation:"slideUp .3s ease"}} onTouchMove={e=>e.preventDefault()} onTouchStart={e=>e.stopPropagation()}>
@@ -15233,6 +15248,7 @@ function TheCabalApp() {
         {tab==="collection" && <CollectionView unique={uniqueCards} notify={notify} favoritesArr={Array.isArray(st.favorites) ? st.favorites : []} onToggleFav={toggleFav}/>}
         {tab==="forge"      && <ForgeView uniqueCards={uniqueCards} st={st} save={save} notify={notify}/>}
         {tab==="missions"   && <MissionsView st={st} save={save} notify={notify} uniqueCards={uniqueCards}/>}
+        {tab==="about"      && <AboutView/>}
       </main>
 
       <footer style={{textAlign:"center",padding:"14px 0 18px",fontSize:8,color:"#333",
@@ -15435,6 +15451,100 @@ function LazyCard({ card, dispW, notify, count, onCardClick, isFav, onToggleFav 
           background:"#0a0a0a", border:`1px solid ${r.color}18`,
         }}/>
       )}
+    </div>
+  );
+}
+
+/* ── AboutView ── */
+function AboutView() {
+  const [open, setOpen] = React.useState(null);
+
+  const toggle = (i) => setOpen(o => o === i ? null : i);
+
+  const linkStyle = {
+    color:"#888", textDecoration:"none", borderBottom:"1px solid #333",
+    transition:"color .15s",
+  };
+
+  const faq = [
+    {
+      q: "How do I get more packs?",
+      a: <>Packs recharge automatically every minute. You can also complete missions in the Missions tab — some of them reset daily, giving you a steady supply of extra packs.</>
+    },
+    {
+      q: "Is this affiliated with networked.art?",
+      a: <>No. This is an independent experiment built for fun with CC0 assets. The name <a href="http://networked.cards" target="_blank" rel="noopener noreferrer" style={linkStyle}>networked.cards</a> is a tribute to the original platform.</>
+    },
+    {
+      q: "How does it work technically?",
+      a: <>The full catalog of Foundation NFTs — over 343,000 tokens — is loaded directly in your browser from a public CSV index. Card images are fetched on-demand via Alchemy's NFT API. Rarity tiers are derived from on-chain sale data sourced from Dune Analytics. None of this would have been possible without the archival work done by <a href="https://x.com/jalilwahdat/status/2044780332898009405?s=20" target="_blank" rel="noopener noreferrer" style={linkStyle}>jalil.eth ↗</a>, who scraped and published the Foundation IPFS index before the platform went offline.</>
+    },
+    {
+      q: "Do I need to connect my wallet?",
+      a: <>No — and you never will. There are no blockchain transactions here. If any version of this website ever asks you to sign a transaction or connect a wallet, assume it is a scam.</>
+    },
+    {
+      q: "This is pointless.",
+      a: <>This is pointless.</>
+    },
+  ];
+
+  return (
+    <div style={{
+      maxWidth:520, margin:"0 auto", padding:"24px 20px 60px",
+      fontFamily:"'DM Mono',monospace", color:"#c0c0c0",
+    }}>
+
+      {/* Hero text */}
+      <div style={{
+        fontSize:11, lineHeight:1.8, color:"#888", letterSpacing:.3,
+        marginBottom:32, borderBottom:"1px solid #1a1a1a", paddingBottom:24,
+      }}>
+        <p style={{marginTop:0}}>
+          Following Foundation's closure in April 2026, the community moved to rescue the art.
+        </p>
+        <p>
+          <a href="http://networked.cards" target="_blank" rel="noopener noreferrer" style={{...linkStyle, color:"#c0c0c0"}}>
+            networked.cards
+          </a>{" "}transforms that entire catalog into a gacha-based discovery game.
+          Revisit, collect, and experience the digital artifacts that defined an era.
+        </p>
+      </div>
+
+      {/* Q&A */}
+      <div style={{fontSize:9, letterSpacing:2, color:"#444", marginBottom:14, textTransform:"uppercase"}}>
+        Q&amp;A
+      </div>
+
+      {faq.map((item, i) => (
+        <div key={i} style={{borderBottom:"1px solid #111", marginBottom:2}}>
+          <button
+            onClick={() => toggle(i)}
+            style={{
+              width:"100%", textAlign:"left", background:"transparent", border:"none",
+              cursor:"pointer", padding:"12px 0",
+              display:"flex", justifyContent:"space-between", alignItems:"center",
+              fontFamily:"'DM Mono',monospace", fontSize:11, color: open===i ? "#e0e0e0" : "#777",
+              letterSpacing:.3, transition:"color .15s",
+            }}
+            onMouseEnter={e => { if(open!==i) e.currentTarget.style.color="#aaa"; }}
+            onMouseLeave={e => { if(open!==i) e.currentTarget.style.color="#777"; }}
+          >
+            <span>{item.q}</span>
+            <span style={{fontSize:9, color:"#444", flexShrink:0, marginLeft:12, transition:"transform .2s",
+              display:"inline-block", transform: open===i ? "rotate(90deg)" : "rotate(0deg)"}}>▶</span>
+          </button>
+          {open === i && (
+            <div style={{
+              fontSize:10, lineHeight:1.75, color:"#777", letterSpacing:.2,
+              padding:"0 0 14px 0", animation:"slideDown .15s ease",
+            }}>
+              {item.a}
+            </div>
+          )}
+        </div>
+      ))}
+
     </div>
   );
 }
