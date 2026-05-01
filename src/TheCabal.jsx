@@ -107,9 +107,7 @@ function CardImage({ card, style }) {
   const [src, setSrc] = React.useState(() => {
     if (!card.image_cid || !card.collection || !card.token_id) return null;
     const key = `${card.collection}_${card.token_id}`;
-    const cached = _alchemyCache[key] || null;
-    console.log(`[card] init ${card.token_id}: cache=${cached ? "HIT" : "MISS"}`);
-    return cached;
+    return _alchemyCache[key] || null;
   });
   const [errStep, setErrStep] = React.useState(0);
 
@@ -2160,22 +2158,30 @@ function TheCabalApp() {
 
   // Pre-draw next pack and prefetch all 5 images immediately
   const _preloadImgs = React.useRef([]);
+  const _preloadDone = React.useRef(Promise.resolve());
+
   const prepareNextPack = useCallback(() => {
-    if (!ACCOUNTS.length) { console.log("[prep] skipped: no ACCOUNTS"); return; }
+    if (!ACCOUNTS.length) return;
     const cards = drawPack(false);
     setNextPackCards(cards);
-    console.log("[prep] pre-drawing", cards.length, "cards, fetching images...");
-    let loaded = 0;
-    cards.filter(c => c.collection && c.token_id).forEach(c => {
+    // Fetch URLs then download actual image bytes — store completion promise
+    const imgPromises = cards.filter(c => c.collection && c.token_id).map(c =>
       getAlchemyThumb(c.collection, c.token_id).then(url => {
-        if (!url) { console.log("[prep] no url for", c.token_id); return; }
-        const img = new window.Image();
-        img.onload = () => { loaded++; console.log(`[prep] img loaded ${loaded}/5`, url.slice(0,60)); };
-        img.onerror = () => console.log("[prep] img error", url.slice(0,60));
-        img.src = url;
-        _preloadImgs.current = [..._preloadImgs.current.slice(-20), img];
-      }).catch(e => console.log("[prep] alchemy error", e));
-    });
+        if (!url) return;
+        return new Promise(resolve => {
+          const img = new window.Image();
+          img.onload = resolve;
+          img.onerror = resolve;
+          img.src = url;
+          _preloadImgs.current = [..._preloadImgs.current.slice(-20), img];
+        });
+      }).catch(()=>{})
+    );
+    // Resolve after all images load or 6s max
+    _preloadDone.current = Promise.race([
+      Promise.all(imgPromises),
+      new Promise(res => setTimeout(res, 6000)),
+    ]);
   }, []);
 
   const checkAchi = useCallback((coll,total,prev,burnTotal) => {
