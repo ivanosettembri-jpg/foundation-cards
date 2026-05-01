@@ -13673,7 +13673,7 @@ function FlippableCard({ card, dispW=120, noFlipOnClick=false, allowTilt=false }
           background: r.color + "cc", border:"3px solid rgba(255,255,255,0.55)", borderRadius:7,
           display:"flex", flexDirection:"column", position:"relative",
           alignItems:"center", justifyContent:"space-between", gap:0, padding:10,
-          paddingTop: Math.round(dispW * 0.20),
+          paddingTop: Math.round(dispW * 0.46),
           paddingBottom: Math.round(dispW * 0.08),
         }}>
           {/* Logo — top-right corner, small */}
