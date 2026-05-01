@@ -13673,7 +13673,7 @@ function FlippableCard({ card, dispW=120, noFlipOnClick=false, allowTilt=false }
           background: r.color + "cc", border:"3px solid rgba(255,255,255,0.55)", borderRadius:7,
           display:"flex", flexDirection:"column", position:"relative",
           alignItems:"center", justifyContent:"space-between", gap:0, padding:10,
-          paddingTop: Math.round(dispW * 0.1),
+          paddingTop: Math.round(dispW * 0.06),
           paddingBottom: Math.round(dispW * 0.08),
         }}>
           {/* Logo — top-right corner, small */}
@@ -15375,30 +15375,24 @@ function CardModal({ card, onClose, isFav, onToggleFav }) {
 
       </div>
 
-      {/* Hint row — below the card */}
-      <div
-        onClick={e=>e.stopPropagation()}
-        style={{
-          display:"flex", gap:20, alignItems:"center",
-          fontFamily:"'DM Mono',monospace", fontSize:10,
-          letterSpacing:1,
-        }}
-      >
-        <span style={{color:"#555"}}>click to flip</span>
-        {onToggleFav && <>
-          <span style={{color:"#2a2a2a"}}>·</span>
+      {/* Fav button — centered, no flip hint */}
+      {onToggleFav && (
+        <div onClick={e=>e.stopPropagation()} style={{display:"flex",justifyContent:"center"}}>
           <button
             onClick={()=>onToggleFav(card.id)}
             style={{
-              background:"transparent", border:"none", cursor:"pointer",
-              fontFamily:"'DM Mono',monospace", fontSize:10, letterSpacing:1,
-              color:isFav?"#e74c3c":"#555", transition:"color .15s", padding:0,
+              background:"transparent",
+              border:`1px solid ${isFav?"#c0392b55":"#2a2a2a"}`,
+              borderRadius:6, cursor:"pointer",
+              fontFamily:"'DM Mono',monospace", fontSize:13, letterSpacing:2,
+              color:isFav?"#e74c3c":"#444", transition:"all .15s",
+              padding:"10px 32px",
             }}
-            onMouseEnter={e=>e.currentTarget.style.color=isFav?"#ff6b6b":"#aaa"}
-            onMouseLeave={e=>e.currentTarget.style.color=isFav?"#e74c3c":"#555"}
-          >{isFav ? "♥ saved" : "♥ save"}</button>
-        </>}
-      </div>
+            onMouseEnter={e=>{e.currentTarget.style.color=isFav?"#ff6b6b":"#888";}}
+            onMouseLeave={e=>{e.currentTarget.style.color=isFav?"#e74c3c":"#444";}}
+          >{isFav ? "♥  saved" : "♥  save"}</button>
+        </div>
+      )}
 
       {/* Price + pulled date + artwork link row */}
       <div
@@ -15454,11 +15448,11 @@ function LazyCard({ card, dispW, notify, count, onCardClick, isFav, onToggleFav 
     // rapid mount/unmount as user scrolls slowly past the boundary.
     const mountObs = new IntersectionObserver(
       ([entry]) => { if (entry.isIntersecting) setVisible(true); },
-      { rootMargin: "600px" }
+      { rootMargin: "300px" }
     );
     const unmountObs = new IntersectionObserver(
       ([entry]) => { if (!entry.isIntersecting) setVisible(false); },
-      { rootMargin: "800px" }
+      { rootMargin: "400px" }
     );
     mountObs.observe(el);
     unmountObs.observe(el);
@@ -15982,10 +15976,13 @@ function AboutView() {
   );
 }
 
+const COLL_PAGE_SIZE = 60;
+
 function CollectionView({ unique, notify, favoritesArr, onToggleFav }) {
   const [showFavOnly,setShowFavOnly] = useState(false);
   const [modalCard, setModalCard] = useState(null);
   const [search,setSearch] = useState("");
+  const [collPage, setCollPage] = useState(1);
   const favorites = useMemo(() => new Set(favoritesArr || []), [favoritesArr]);
 
   // With 343k cards we never render placeholders — collection shows only owned cards
@@ -16012,6 +16009,9 @@ function CollectionView({ unique, notify, favoritesArr, onToggleFav }) {
       return a.name.localeCompare(b.name);
     });
   }, [unique, search, showFavOnly, favoritesArr]);
+
+  // Reset to page 1 when search or filter changes
+  React.useEffect(() => { setCollPage(1); }, [search, showFavOnly]);
 
   const inp = {fontFamily:"'DM Mono',monospace",background:"#0a0a0a",border:"1px solid #1e1e1e",
     borderRadius:4,color:"#aaa",fontSize:11,padding:"5px 9px",outline:"none"};
@@ -16050,21 +16050,39 @@ function CollectionView({ unique, notify, favoritesArr, onToggleFav }) {
         </div>
       )}
 
-      {/* ── Full grid: owned cards only (343k pool — no placeholders) ── */}
+      {/* ── Full grid: owned cards only — paginated to prevent mobile crash ── */}
       {!isFiltering && (
         unique.length === 0
           ? <div style={{textAlign:"center",color:"#2a2a2a",fontSize:9,padding:60,letterSpacing:1,fontFamily:"'DM Mono',monospace"}}>
               no cards yet — open some packs
             </div>
-          : <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:10}}>
-              {[...unique].sort((a,b) => {
+          : (() => {
+              const sorted = [...unique].sort((a,b) => {
                 const rd = RARITY_ORDER.indexOf(a.rarity) - RARITY_ORDER.indexOf(b.rarity);
                 if (rd !== 0) return rd;
                 return a.name.localeCompare(b.name);
-              }).map(card => (
-                <LazyCard key={card._uid || card.id} card={card} dispW={CARD_W} notify={notify} count={card.count} onCardClick={setModalCard} isFav={(favoritesArr||[]).includes(card.id)} onToggleFav={onToggleFav}/>
-              ))}
-            </div>
+              });
+              const visible = sorted.slice(0, collPage * COLL_PAGE_SIZE);
+              const hasMore = sorted.length > visible.length;
+              return (<>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:10}}>
+                  {visible.map(card => (
+                    <LazyCard key={card._uid || card.id} card={card} dispW={CARD_W} notify={notify} count={card.count} onCardClick={setModalCard} isFav={(favoritesArr||[]).includes(card.id)} onToggleFav={onToggleFav}/>
+                  ))}
+                </div>
+                {hasMore && (
+                  <div style={{textAlign:"center",marginTop:18}}>
+                    <button onClick={()=>setCollPage(p=>p+1)} style={{
+                      fontFamily:"'DM Mono',monospace",fontSize:9,letterSpacing:1.5,
+                      background:"transparent",border:"1px solid #222",borderRadius:4,
+                      color:"#444",cursor:"pointer",padding:"8px 20px",
+                    }}>
+                      load more ({sorted.length - visible.length} remaining)
+                    </button>
+                  </div>
+                )}
+              </>);
+            })()
       )}
 
       {/* ── Filtered view: only matching collected cards ── */}
@@ -16073,7 +16091,7 @@ function CollectionView({ unique, notify, favoritesArr, onToggleFav }) {
           ? <div style={{textAlign:"center",color:"#2a2a2a",fontSize:9,padding:40,letterSpacing:1}}>nothing matches</div>
           : <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:10}}>
               {filteredCollected.map(card=>(
-                <LazyCard key={card.id} card={card} dispW={CARD_W} notify={notify} count={card.count} onCardClick={setModalCard}/>
+                <LazyCard key={card.id} card={card} dispW={CARD_W} notify={notify} count={card.count} onCardClick={setModalCard} isFav={(favoritesArr||[]).includes(card.id)} onToggleFav={onToggleFav}/>
               ))}
             </div>
       )}
