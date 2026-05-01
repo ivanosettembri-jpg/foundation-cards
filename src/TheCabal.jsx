@@ -1,8 +1,5 @@
 // Rare whitelist loaded async from /rare.json (32k entries, non-blocking)
-let _rareSet = null;
-fetch('/rare.json').then(r => r.json()).then(arr => {
-  _rareSet = new Set(arr);
-}).catch(() => { _rareSet = new Set(); });
+let _rareSet = new Set(); // populated during loadFoundationPool
 
 const DUNE_WHITELIST = {
   "0x0031e15fdc9a200bc74088c6d6dbcbe80e1f1e76:1":"UR",
@@ -8112,7 +8109,12 @@ function parseFoundationCSV(text) {
 }
 
 async function loadFoundationPool(onProgress) {
-  const resp = await fetch(FOUNDATION_CSV_URL);
+  // Load rare.json and CSV in parallel
+  const [resp, rareArr] = await Promise.all([
+    fetch(FOUNDATION_CSV_URL),
+    fetch('/rare.json').then(r => r.json()).catch(() => [])
+  ]);
+  _rareSet = new Set(rareArr);
   if (!resp.ok) throw new Error("CSV fetch failed: " + resp.status);
 
   // Stream with progress
