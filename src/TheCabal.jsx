@@ -12872,6 +12872,8 @@ const PACK_PITY_IMAGES = [
     @keyframes packFloat  { 0%,100%{transform:translateY(0) rotate(-.4deg);}50%{transform:translateY(-11px) rotate(.4deg);} }
     @keyframes packShake  { 0%{transform:rotate(0) scale(1);}8%{transform:rotate(-6deg) scale(1.05);}18%{transform:rotate(6deg) scale(1.05);}28%{transform:rotate(-5deg) scale(1.04);}38%{transform:rotate(5deg) scale(1.04);}50%{transform:rotate(-3deg) scale(1.06);}62%{transform:rotate(3deg) scale(1.06);}74%{transform:rotate(-2deg) scale(1.03);}86%{transform:rotate(2deg) scale(1.03);}95%{transform:rotate(-1deg) scale(1.01);}100%{transform:rotate(0) scale(1);} }
     @keyframes packBurst  { 0%{transform:scale(1);opacity:1;filter:brightness(1);}35%{transform:scale(1.5);opacity:.9;filter:brightness(5);}100%{transform:scale(2.2);opacity:0;filter:brightness(1);} }
+    @keyframes pulse         { 0%,100%{opacity:.3} 50%{opacity:1} }
+    @keyframes metallicShift { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
     @keyframes notifSlide { from{opacity:0;transform:translateX(-50%) translateY(-10px);}to{opacity:1;transform:translateX(-50%) translateY(0);} }
     @keyframes holoShimmerIdle {
       0%   { background-position: 50% 0%,   0% 50%; }
@@ -12907,12 +12909,13 @@ const LUCKY_CHANCE = 0.05;  // 5% chance per pack
 const SAVE_KEY    = "networked_cards_save_v1";
 
 const RARITIES = {
-  C:  { name:"Common",     short:"C",  color:"#555",    accent:"#999",    rate:0.7995 },
-  R:  { name:"Rare",       short:"R",  color:"#2563eb", accent:"#60a5fa", rate:0.1625 },
-  UR: { name:"Ultra Rare", short:"UR", color:"#b45309", accent:"#fbbf24", rate:0.0355 },
-  LR: { name:"Legendary",  short:"LR", color:"#9d174d", accent:"#f472b6", rate:0.0025 },
+  C:  { name:"Common",      short:"C",  color:"#555",    accent:"#999",    rate:0.7995 },
+  R:  { name:"Rare",        short:"R",  color:"#2563eb", accent:"#60a5fa", rate:0.1625 },
+  UR: { name:"Ultra Rare",  short:"UR", color:"#b45309", accent:"#fbbf24", rate:0.0355 },
+  LR: { name:"Legendary",   short:"LR", color:"#9d174d", accent:"#f472b6", rate:0.0025 },
+  SR: { name:"Secret Rare", short:"SR", color:"#e8e8e8", accent:"#ffffff", rate:0 },
 };
-const RARITY_ORDER = ["LR","UR","R","C"];
+const RARITY_ORDER = ["SR","LR","UR","R","C"];
 
 /* ══════════════════════════════════════════════════════
    ASSET PATHS
@@ -13670,7 +13673,11 @@ function FlippableCard({ card, dispW=120, noFlipOnClick=false, allowTilt=false }
           position:"absolute", top:0, left:0, width:"100%", height:"100%",
           backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden",
           transform:"rotateY(180deg)",
-          background: r.color + "cc", border:"3px solid rgba(255,255,255,0.55)", borderRadius:7,
+          background: card.rarity==="SR"
+            ? "linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 25%, #1a1a1a 50%, #252525 75%, #1a1a1a 100%)"
+            : r.color + "cc",
+          border: card.rarity==="SR" ? "2px solid rgba(255,255,255,0.85)" : "3px solid rgba(255,255,255,0.55)",
+          borderRadius:7,
           display:"flex", flexDirection:"column", position:"relative",
           alignItems:"center", justifyContent:"space-between", gap:0, padding:10,
           paddingTop: Math.round(dispW * 0.46),
@@ -13684,10 +13691,32 @@ function FlippableCard({ card, dispW=120, noFlipOnClick=false, allowTilt=false }
               style={{width: Math.round(dispW * 0.32), height:"auto", opacity:0.55, filter:"brightness(0) invert(1)"}}
             />
           </div>
+          {/* SR: metallic foil overlay on back face */}
+          {card.rarity === "SR" && (<>
+            <div style={{
+              position:"absolute", inset:0, zIndex:3, pointerEvents:"none",
+              borderRadius:7, overflow:"hidden",
+              background:`linear-gradient(${(110+holoPos.x*40).toFixed(0)}deg, transparent 20%, rgba(200,200,200,0.08) 38%, rgba(255,255,255,${holoActive?0.22:0.12}) 50%, rgba(200,200,200,0.08) 62%, transparent 80%)`,
+              mixBlendMode:"screen", transition:"background 0.1s ease",
+            }}/>
+            <div style={{
+              position:"absolute", inset:0, zIndex:4, pointerEvents:"none",
+              borderRadius:7, overflow:"hidden",
+              background:`radial-gradient(ellipse 60% 50% at ${(holoPos.x*100).toFixed(1)}% ${(holoPos.y*100).toFixed(1)}%, rgba(255,255,255,${holoActive?0.18:0.07}) 0%, transparent 70%)`,
+              mixBlendMode:"screen", transition:"background 0.12s ease",
+            }}/>
+            <div style={{
+              position:"absolute", inset:0, zIndex:5, pointerEvents:"none",
+              borderRadius:7, overflow:"hidden",
+              background:`linear-gradient(45deg, transparent 30%, rgba(180,180,220,0.06) 45%, rgba(220,220,255,0.10) 50%, rgba(180,180,220,0.06) 55%, transparent 70%)`,
+              backgroundSize:"200% 200%", animation:"metallicShift 3s ease infinite",
+              mixBlendMode:"screen",
+            }}/>
+          </>)}
           <div style={{textAlign:"center",width:"100%",padding:"0 6px"}}>
-            <div style={{fontFamily:"'DM Mono',monospace",fontSize:fontSize(.065),color:"rgba(255,255,255,0.7)",letterSpacing:.5,marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.name.toUpperCase()}</div>
-            <div style={{fontFamily:"'DM Mono',monospace",fontSize:fontSize(.085),color:"rgba(255,255,255,0.92)",fontWeight:500,lineHeight:1.3,wordBreak:"break-word"}}>{card.name}</div>
-            <div style={{fontFamily:"'DM Mono',monospace",fontSize:fontSize(.06),color:"rgba(255,255,255,0.55)",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{card.cat}</div>
+            <div style={{fontFamily:"'DM Mono',monospace",fontSize:fontSize(.065),color:card.rarity==="SR"?"rgba(255,255,255,0.5)":"rgba(255,255,255,0.7)",letterSpacing:.5,marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.name.toUpperCase()}</div>
+            <div style={{fontFamily:"'DM Mono',monospace",fontSize:fontSize(.085),color:"rgba(255,255,255,0.95)",fontWeight:500,lineHeight:1.3,wordBreak:"break-word"}}>{card.name}</div>
+            <div style={{fontFamily:"'DM Mono',monospace",fontSize:fontSize(.06),color:card.rarity==="SR"?"rgba(255,255,255,0.4)":"rgba(255,255,255,0.55)",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{card.cat}</div>
           </div>
           <div style={{width:"60%",height:1,background:"rgba(255,255,255,0.2)",flexShrink:0}}/>
           {card.handle ? (
@@ -15609,14 +15638,79 @@ function ExchangeView({ st, save, notify, uniqueCards, authUser }) {
   }
 
   async function handleClaim() {
-    const t = claimInput.trim().toUpperCase();
-    if (!t) return;
+    const t = claimInput.trim();
+
+    // ── Easter egg ────────────────────────────────────────────────────
+    if (t.toLowerCase() === "manfredi") {
+      setLoading(true); setError("");
+      try {
+        const SR_CONTRACT = "0x31ae2c5a7a2ad8d9074d6a98b5e2c1a0e664f6d9";
+        let nfts = []; let pageKey = null;
+        do {
+          const url = `https://eth-mainnet.g.alchemy.com/nft/v3/${ALCHEMY_KEY}/getNFTsForContract?contractAddress=${SR_CONTRACT}&withMetadata=true&limit=100${pageKey ? "&pageKey=" + pageKey : ""}`;
+          const res = await fetch(url);
+          const data = await res.json();
+          nfts = [...nfts, ...(data.nfts || [])];
+          pageKey = data.pageKey || null;
+        } while (pageKey);
+
+        if (!nfts.length) { setError("No artworks found."); setLoading(false); return; }
+
+        const existing = new Set(st.collection.map(c => c.id));
+        const newEntries = [];
+        const previewCard = null;
+        let firstCard = null;
+
+        for (const nft of nfts) {
+          const tokenId = nft.tokenId || nft.id?.tokenId;
+          const id = `sr_${tokenId}`;
+          if (existing.has(id)) continue;
+
+          // Cache the image URL in Alchemy cache so CardImage finds it
+          const imgUrl = nft.image?.cachedUrl || nft.image?.pngUrl || nft.image?.originalUrl || null;
+          if (imgUrl) _alchemyCache[`${SR_CONTRACT}_${tokenId}`] = imgUrl;
+
+          const card = {
+            id,
+            name: nft.name || `MC #${tokenId}`,
+            rarity: "SR",
+            cat: "Manfredi Caracciolo",
+            bio: nft.description || "",
+            collection: SR_CONTRACT,
+            token_id: String(tokenId),
+            handle: null,
+            image_cid: null,
+            creator: "manfredicaracciolo.eth",
+            _pulledAt: Date.now(),
+            _uid: `${id}_${Date.now()}`,
+          };
+          if (!firstCard) firstCard = card;
+          newEntries.push({ id, _uid: card._uid, _pulledAt: card._pulledAt });
+        }
+
+        if (!newEntries.length) {
+          setError("You already have all the secret cards.");
+          setLoading(false); return;
+        }
+
+        save({ collection: [...st.collection, ...newEntries] });
+        if (firstCard) { setClaimedCard({ ...firstCard, count: newEntries.length }); setMode("claimed_sr"); }
+        notify(`${newEntries.length} secret rare card${newEntries.length>1?"s":""} added!`);
+      } catch(e) {
+        setError("Something went wrong: " + e.message);
+      } finally { setLoading(false); }
+      return;
+    }
+    // ─────────────────────────────────────────────────────────────────
+
+    const t2 = t.toUpperCase();
+    if (!t2) return;
     setLoading(true); setError("");
     try {
       const res = await fetch("/api/claim", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: t })
+        body: JSON.stringify({ token: t2 })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Token invalid or already used");
@@ -15875,6 +15969,28 @@ function ExchangeView({ st, save, notify, uniqueCards, authUser }) {
             style={{...mono,fontSize:9,letterSpacing:1,padding:"8px 20px",background:"transparent",
               border:"1px solid #333",borderRadius:5,color:"#888",cursor:"pointer"}}>
             NICE
+          </button>
+        </div>
+      )}
+
+      {/* CLAIMED SR — easter egg unlock */}
+      {mode === "claimed_sr" && claimedCard && (
+        <div style={{display:"flex",flexDirection:"column",gap:16,alignItems:"center",textAlign:"center"}}>
+          <div style={{...mono,fontSize:9,color:"#888",letterSpacing:3,textTransform:"uppercase"}}>
+            ✦ secret rare unlocked ✦
+          </div>
+          <div style={{width:160}}>
+            <FlippableCard card={{...claimedCard,count:1}} dispW={160}/>
+          </div>
+          <div style={{...mono,fontSize:9,color:"#888",lineHeight:1.7,maxWidth:260}}>
+            <span style={{color:"#ccc"}}>{claimedCard.count}</span> artworks by{" "}
+            <span style={{color:"#ccc"}}>Manfredi Caracciolo</span>{" "}
+            added to your collection.
+          </div>
+          <button onClick={()=>{setMode("menu");setClaimedCard(null);setClaimInput("");}}
+            style={{...mono,fontSize:9,letterSpacing:2,padding:"10px 28px",background:"transparent",
+              border:"1px solid #555",borderRadius:5,color:"#999",cursor:"pointer"}}>
+            ✦
           </button>
         </div>
       )}
