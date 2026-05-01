@@ -14631,6 +14631,10 @@ function TheCabalApp() {
   const [st,setSt]           = useState(INIT);
   const [loaded,setLoaded]   = useState(false);
   const [authUser,setAuthUser] = useState(null);
+  const [autoClaimToken, setAutoClaimToken] = useState(() => {
+    const m = window.location.pathname.match(/\/claim\/([A-Z0-9]{6,10})/i);
+    return m ? m[1].toUpperCase() : null;
+  });
   const [loadProgress,setLP] = useState(0);
   const [loadErr,setLoadErr] = useState(null);
 
@@ -15045,7 +15049,7 @@ function TheCabalApp() {
   const mins=Math.floor(regenS/60), secs=regenS%60;
   const timerStr=`${mins}:${String(secs).padStart(2,"0")}`;
   const timerPct=((PACK_REGEN-regenS)/PACK_REGEN)*100;
-  const navItems=[{k:"gacha",l:"GACHA"},{k:"collection",l:"COLLECTION"},{k:"missions",l:"MISSIONS"},{k:"about",l:"ABOUT"}];
+  const navItems=[{k:"gacha",l:"GACHA"},{k:"collection",l:"COLLECTION"},{k:"exchange",l:"EXCHANGE"},{k:"missions",l:"MISSIONS"},{k:"about",l:"ABOUT"}];
 
   return (
     <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",background:"#060606",
@@ -15055,6 +15059,12 @@ function TheCabalApp() {
       {showGyroPrompt && (
         <GyroPermissionPrompt onDone={() => setShowGyroPrompt(false)}/>
       )}
+      {autoClaimToken && loaded && (
+        <AutoClaimModal token={autoClaimToken} st={st} save={save} notify={notify}
+          onDone={()=>{ setAutoClaimToken(null); window.history.replaceState(null,"","/"); }}
+        />
+      )}
+
       {notif && (
         <div style={{position:"fixed",top:14,left:"50%",zIndex:9999,transform:"translateX(-50%)",
           background:"#141414",border:"1px solid #333",borderRadius:5,padding:"8px 18px",
@@ -15246,6 +15256,7 @@ function TheCabalApp() {
         )}
 
         {tab==="collection" && <CollectionView unique={uniqueCards} notify={notify} favoritesArr={Array.isArray(st.favorites) ? st.favorites : []} onToggleFav={toggleFav}/>}
+        {tab==="exchange"   && <ExchangeView st={st} save={save} notify={notify} uniqueCards={uniqueCards} authUser={authUser}/>}
         {tab==="forge"      && <ForgeView uniqueCards={uniqueCards} st={st} save={save} notify={notify}/>}
         {tab==="missions"   && <MissionsView st={st} save={save} notify={notify} uniqueCards={uniqueCards}/>}
         {tab==="about"      && <AboutView/>}
@@ -15450,6 +15461,389 @@ function LazyCard({ card, dispW, notify, count, onCardClick, isFav, onToggleFav 
           width:dispW, height:CARD_H, borderRadius:7,
           background:"#0a0a0a", border:`1px solid ${r.color}18`,
         }}/>
+      )}
+    </div>
+  );
+}
+
+/* ── AutoClaimModal — auto-open when /claim/TOKEN URL is visited ── */
+function AutoClaimModal({ token, st, save, notify, onDone }) {
+  const mono = { fontFamily:"'DM Mono',monospace" };
+  const [status, setStatus] = useState("loading");
+  const [claimedCard, setClaimedCard] = useState(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    fetch("/api/claim", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ token })
+    }).then(r=>r.json()).then(data => {
+      if (data.error) { setStatus("error"); setError(data.error); return; }
+      const card = data.cardData;
+      const newEntry = { id:card.id, _uid: card._uid || `${card.id}_${Date.now()}`, tradedAt: Date.now() };
+      const exA = {...(st.achievements||{}), exRecvC:true};
+      if(card.rarity==="R"||card.rarity==="UR"||card.rarity==="LR") exA.exRecvR=true;
+      save({ collection:[...st.collection, newEntry], achievements:exA });
+      setClaimedCard(card); setStatus("success");
+      notify("Card added to your collection!");
+    }).catch(e => { setStatus("error"); setError(e.message); });
+  }, []);
+
+  return (
+    <div style={{position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,0.92)",
+      display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+      gap:20,padding:24}}>
+      {status==="loading" && <div style={{...mono,fontSize:11,color:"#555",letterSpacing:2}}>CLAIMING CARD...</div>}
+      {status==="success" && claimedCard && (<>
+        <div style={{...mono,fontSize:9,color:"#555",letterSpacing:1}}>CARD CLAIMED</div>
+        <div style={{width:200}}><FlippableCard card={{...claimedCard,count:1}} dispW={200}/></div>
+        <div style={{...mono,fontSize:11,color:RARITIES[claimedCard.rarity]?.accent||"#d0d0d0",textAlign:"center"}}>
+          {claimedCard.name} added to your collection
+        </div>
+        <button onClick={onDone} style={{...mono,fontSize:9,letterSpacing:2,padding:"10px 28px",
+          background:"transparent",border:"1px solid #444",borderRadius:5,color:"#999",cursor:"pointer"}}>
+          NICE
+        </button>
+      </>)}
+      {status==="error" && (<>
+        <div style={{...mono,fontSize:10,color:"#c84b31",textAlign:"center"}}>{error}</div>
+        <button onClick={onDone} style={{...mono,fontSize:9,color:"#555",background:"transparent",
+          border:"none",cursor:"pointer",letterSpacing:1}}>close</button>
+      </>)}
+    </div>
+  );
+}
+
+/* ── ExchangeView — send & claim cards between players via single-use tokens ── */
+function ExchangeView({ st, save, notify, uniqueCards, authUser }) {
+  const mono = { fontFamily:"'DM Mono',monospace" };
+
+  // Login gate
+  if (!authUser) {
+    return (
+      <div style={{
+        display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+        gap:14, padding:"48px 24px", textAlign:"center",
+        fontFamily:"'DM Mono',monospace",
+      }}>
+        <div style={{fontSize:22, color:"#222"}}>⇄</div>
+        <div style={{fontSize:10, color:"#555", letterSpacing:1.5, textTransform:"uppercase"}}>Exchange</div>
+        <div style={{fontSize:10, color:"#444", lineHeight:1.7, maxWidth:260}}>
+          Sign in to send or receive cards with other players.
+        </div>
+        <div style={{fontSize:8, color:"#333", letterSpacing:1}}>use the button in the top bar</div>
+      </div>
+    );
+  }
+
+  const [mode, setMode]           = useState("menu");
+  const [selected, setSelected]   = useState(null);
+  const [token, setToken]         = useState("");
+  const [claimInput, setClaimInput] = useState("");
+  const [exSearch, setExSearch]   = useState("");
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState("");
+  const [claimedCard, setClaimedCard] = useState(null);
+
+  const sortedCards = [...uniqueCards].sort((a,b) =>
+    RARITY_ORDER.indexOf(a.rarity) - RARITY_ORDER.indexOf(b.rarity)
+  );
+
+  async function handleSend() {
+    if (!selected) return;
+    setLoading(true); setError("");
+    try {
+      const res = await fetch("/api/transfer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cardId: selected.id,
+          cardData: { id: selected.id, name: selected.name, rarity: selected.rarity,
+                      handle: selected.handle, cat: selected.cat, image_cid: selected.image_cid,
+                      creator: selected.creator, collection: selected.collection,
+                      token_id: selected.token_id, bio: selected.bio,
+                      _uid: `${selected.id}_${Date.now()}` }
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Server error");
+      let removed = false;
+      const newCollection = st.collection.filter(c => {
+        if (!removed && c.id === selected.id) { removed = true; return false; }
+        return true;
+      });
+      save({ collection: newCollection });
+      setToken(data.token);
+      setMode("sent");
+      notify("Card removed from your collection");
+    } catch(e) {
+      setError(e.message);
+    } finally { setLoading(false); }
+  }
+
+  async function handleClaim() {
+    const t = claimInput.trim().toUpperCase();
+    if (!t) return;
+    setLoading(true); setError("");
+    try {
+      const res = await fetch("/api/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: t })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Token invalid or already used");
+      const card = data.cardData;
+      const newEntry = { id: card.id, _uid: card._uid || `${card.id}_${Date.now()}`, tradedAt: Date.now() };
+      const exA2 = {...(st.achievements||{}), exRecvC:true};
+      if(card.rarity==="R"||card.rarity==="UR"||card.rarity==="LR") exA2.exRecvR=true;
+      save({ collection: [...st.collection, newEntry], achievements: exA2 });
+      setClaimedCard(card);
+      setMode("claimed");
+      notify("Card added to your collection!");
+    } catch(e) {
+      setError(e.message);
+    } finally { setLoading(false); }
+  }
+
+  const btnStyle = (active) => ({
+    ...mono, fontSize:9, letterSpacing:1, padding:"8px 18px",
+    background:"transparent", borderRadius:5, cursor:"pointer",
+    border: `1px solid ${active ? "#666" : "#222"}`,
+    color: active ? "#d0d0d0" : "#444", transition:"all .15s",
+  });
+
+  const cardGrid = (cards) => (
+    <div style={{display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(86px,1fr))", gap:7}}>
+      {cards.map((card, idx) => {
+        const r = RARITIES[card.rarity];
+        const cardKey = card._uid || card.id + "_" + idx;
+        const isSel = selected?.id === card.id;
+        return (
+          <div key={cardKey} onClick={() => { setSelected(card); setMode("preview"); }}
+            style={{
+              cursor:"pointer", borderRadius:5, overflow:"hidden",
+              border:`1.5px solid ${isSel ? r.color : r.color+"44"}`,
+              background: isSel ? r.color+"12" : "#0c0c0c",
+              transition:"border-color .12s, background .12s", position:"relative",
+            }}>
+            <div style={{position:"relative", width:"100%", paddingBottom:"100%", background:"#0d0d0d", overflow:"hidden"}}>
+              <div style={{position:"absolute",inset:0}}>
+                <CardImage card={card} style={{width:"100%",height:"100%",objectFit:"cover",
+                  filter: isSel ? "none" : "grayscale(0.35) brightness(0.6)",
+                  transition:"filter .15s"}}/>
+              </div>
+            </div>
+            <div style={{padding:"4px 5px 5px", ...mono}}>
+              <div style={{fontSize:7, color: isSel ? r.accent : r.accent+"88",
+                whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}>{card.name}</div>
+              <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:1}}>
+                <span style={{fontSize:6, color:r.color, letterSpacing:.3}}>{r.name}</span>
+                {card.count > 1 && <span style={{fontSize:6.5, color:"#383838"}}>×{card.count}</span>}
+              </div>
+            </div>
+            {isSel && (
+              <div style={{position:"absolute",top:4,right:4,background:r.color,
+                color:"#000",borderRadius:3,padding:"1px 5px",fontSize:7,...mono,
+                fontWeight:600}}>✓</div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  return (
+    <div style={{animation:"slideUp .3s ease"}}>
+
+      {/* MENU */}
+      {mode === "menu" && (
+        <div style={{display:"flex",flexDirection:"column",gap:16}}>
+          <p style={{...mono, fontSize:10, color:"#555", lineHeight:1.6, margin:0}}>
+            Send a card to another player by generating a single-use claim token.
+            The card is removed from your collection immediately.
+          </p>
+          <div style={{display:"flex",gap:8}}>
+            <button style={btnStyle(false)} onClick={()=>setMode("send")}>SEND A CARD</button>
+            <button style={btnStyle(false)} onClick={()=>setMode("claim")}>CLAIM A CARD</button>
+          </div>
+        </div>
+      )}
+
+      {/* SEND */}
+      {mode === "send" && (
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+            <button onClick={()=>{setMode("menu");setSelected(null);setError("");setExSearch("");}}
+              style={{...mono,fontSize:8,color:"#555",background:"transparent",border:"none",cursor:"pointer"}}>
+              ← back
+            </button>
+            <div style={{...mono,fontSize:9,color:"#666",letterSpacing:1}}>SELECT CARD TO SEND</div>
+          </div>
+          <input value={exSearch} onChange={e=>setExSearch(e.target.value)}
+            placeholder="search..." style={{
+              ...mono,fontSize:9,width:"100%",padding:"6px 10px",marginBottom:8,
+              background:"#0a0a0a",border:"1px solid #1e1e1e",borderRadius:4,
+              color:"#888",outline:"none",boxSizing:"border-box",
+            }}/>
+          {cardGrid(sortedCards.filter(c=>(c.name||"").toLowerCase().includes(exSearch.toLowerCase())||(c.handle||"").toLowerCase().includes(exSearch.toLowerCase())))}
+          {error && <div style={{...mono,fontSize:8,color:"#c84b31",letterSpacing:.5}}>{error}</div>}
+        </div>
+      )}
+
+      {/* PREVIEW — full card, swipe to send */}
+      {mode === "preview" && selected && (() => {
+        const CARD_W = Math.min(280, window.innerWidth - 48);
+        let startX = null, startY = null, dragX = 0, dragY = 0, dragging = false;
+
+        const onPointerDown = e => {
+          startX = e.clientX ?? e.touches?.[0]?.clientX;
+          startY = e.clientY ?? e.touches?.[0]?.clientY;
+          dragging = true; dragX = 0; dragY = 0;
+          e.currentTarget.style.transition = "none";
+        };
+        const onPointerMove = e => {
+          if (!dragging || startX === null) return;
+          const x = e.clientX ?? e.touches?.[0]?.clientX;
+          const y = e.clientY ?? e.touches?.[0]?.clientY;
+          dragX = x - startX; dragY = y - startY;
+          const dist = Math.abs(dragX) + Math.abs(dragY||0);
+          e.currentTarget.style.transform = `translateX(${dragX}px) translateY(${dragY||0}px) rotate(${dragX * 0.04}deg)`;
+          e.currentTarget.style.opacity = String(Math.max(0.3, 1 - dist / 250));
+        };
+        const onPointerUp = e => {
+          dragging = false;
+          if (Math.abs(dragX) > 80 || Math.abs(dragY) > 80) {
+            e.currentTarget.style.transition = "transform 0.3s ease, opacity 0.3s ease";
+            const dir = Math.abs(dragX) > Math.abs(dragY) ? (dragX > 0 ? "120%" : "-120%") : "0";
+            const dirY = Math.abs(dragY) > Math.abs(dragX) ? (dragY > 0 ? "120%" : "-120%") : "0";
+            e.currentTarget.style.transform = `translateX(${dir}) translateY(${dirY}) rotate(${dragX * 0.1}deg)`;
+            e.currentTarget.style.opacity = "0";
+            setTimeout(() => handleSend(), 280);
+          } else {
+            e.currentTarget.style.transition = "transform 0.3s ease, opacity 0.3s ease";
+            e.currentTarget.style.transform = "translateX(0) rotate(0deg)";
+            e.currentTarget.style.opacity = "1";
+          }
+        };
+
+        return (
+          <div
+            style={{position:"fixed",inset:0,zIndex:9000,background:"rgba(0,0,0,0.88)",
+              display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+              gap:20,padding:24}}
+            onClick={()=>{setMode("send");setSelected(null);}}
+          >
+            <div onClick={e=>e.stopPropagation()}
+              style={{touchAction:"none",userSelect:"none",cursor:"grab"}}
+              onMouseDown={onPointerDown} onMouseMove={onPointerMove}
+              onMouseUp={onPointerUp} onMouseLeave={onPointerUp}
+              onTouchStart={onPointerDown} onTouchMove={onPointerMove} onTouchEnd={onPointerUp}
+            >
+              <FlippableCard card={selected} dispW={CARD_W}/>
+            </div>
+            <div onClick={e=>e.stopPropagation()} style={{
+              ...mono,fontSize:11,color:"#888",letterSpacing:2,textAlign:"center",
+              order:-1,marginBottom:4,
+            }}>
+              {loading ? "sending..." : "swipe the card to send"}
+            </div>
+            <div onClick={e=>e.stopPropagation()} style={{
+              ...mono,fontSize:8,color:"#333",letterSpacing:1,textAlign:"center",
+            }}>
+              tap outside to cancel
+            </div>
+            {error && <div onClick={e=>e.stopPropagation()} style={{...mono,fontSize:8,color:"#c84b31"}}>{error}</div>}
+          </div>
+        );
+      })()}
+
+      {/* SENT — token display */}
+      {mode === "sent" && (
+        <div style={{display:"flex",flexDirection:"column",gap:16,alignItems:"center",textAlign:"center"}}>
+          <div style={{...mono,fontSize:9,color:"#555",letterSpacing:1}}>TOKEN GENERATED</div>
+          <div style={{
+            ...mono,fontSize:28,letterSpacing:8,color:"#d0d0d0",
+            padding:"18px 28px",border:"1px solid #333",borderRadius:8,
+            background:"#080808",userSelect:"all",
+          }}>{token}</div>
+          <div style={{...mono,fontSize:9,color:"#444",lineHeight:1.7,maxWidth:280}}>
+            Share this token with the recipient.<br/>
+            It expires in <span style={{color:"#888"}}>7 days</span> and can only be used once.<br/>
+            <span style={{color:"#555"}}>The card has been removed from your collection.</span>
+          </div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"center"}}>
+            <button onClick={()=>navigator.clipboard?.writeText(token).then(()=>notify("Token copied!"))}
+              style={{...mono,fontSize:9,letterSpacing:1,padding:"8px 14px",background:"transparent",
+                border:"1px solid #333",borderRadius:5,color:"#888",cursor:"pointer"}}>
+              COPY TOKEN
+            </button>
+            <button onClick={()=>{
+              const link = `${window.location.origin}/claim/${token}`;
+              navigator.clipboard?.writeText(link).then(()=>notify("Link copied!"));
+            }} style={{...mono,fontSize:9,letterSpacing:1,padding:"8px 14px",background:"transparent",
+              border:"1px solid #333",borderRadius:5,color:"#888",cursor:"pointer"}}>
+              COPY LINK
+            </button>
+          </div>
+          <button onClick={()=>{setMode("menu");setToken("");setSelected(null);}}
+            style={{...mono,fontSize:8,color:"#444",background:"transparent",border:"none",cursor:"pointer",letterSpacing:1}}>
+            DONE
+          </button>
+        </div>
+      )}
+
+      {/* CLAIM */}
+      {mode === "claim" && (
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
+            <button onClick={()=>{setMode("menu");setError("");setClaimInput("");}}
+              style={{...mono,fontSize:8,color:"#555",background:"transparent",border:"none",cursor:"pointer"}}>
+              ← back
+            </button>
+            <div style={{...mono,fontSize:9,color:"#666",letterSpacing:1}}>ENTER CLAIM TOKEN</div>
+          </div>
+          <input
+            value={claimInput}
+            onChange={e=>setClaimInput(e.target.value.toUpperCase())}
+            placeholder="XXXXXXXX"
+            maxLength={8}
+            style={{
+              ...mono,fontSize:22,letterSpacing:6,textAlign:"center",
+              padding:"14px",background:"#080808",border:"1px solid #333",
+              borderRadius:6,color:"#d0d0d0",width:"100%",outline:"none",boxSizing:"border-box",
+            }}
+          />
+          {error && <div style={{...mono,fontSize:8,color:"#c84b31",letterSpacing:.5}}>{error}</div>}
+          <button onClick={handleClaim} disabled={loading || claimInput.length < 6}
+            style={{
+              ...mono,fontSize:10,letterSpacing:2,padding:"12px",
+              background:"transparent",
+              border:`1px solid ${claimInput.length>=6?"#555":"#1a1a1a"}`,
+              borderRadius:5,color: claimInput.length>=6?"#bbb":"#333",
+              cursor: loading ? "wait" : "pointer",
+            }}>
+            {loading ? "CLAIMING..." : "CLAIM CARD"}
+          </button>
+        </div>
+      )}
+
+      {/* CLAIMED */}
+      {mode === "claimed" && claimedCard && (
+        <div style={{display:"flex",flexDirection:"column",gap:16,alignItems:"center",textAlign:"center"}}>
+          <div style={{...mono,fontSize:9,color:"#555",letterSpacing:1}}>CARD CLAIMED</div>
+          <div style={{width:160}}>
+            <FlippableCard card={{...claimedCard,count:1}} dispW={160}/>
+          </div>
+          <div style={{...mono,fontSize:10,color:RARITIES[claimedCard.rarity]?.accent||"#d0d0d0"}}>
+            {claimedCard.name} added to your collection
+          </div>
+          <button onClick={()=>{setMode("menu");setClaimedCard(null);setClaimInput("");}}
+            style={{...mono,fontSize:9,letterSpacing:1,padding:"8px 20px",background:"transparent",
+              border:"1px solid #333",borderRadius:5,color:"#888",cursor:"pointer"}}>
+            NICE
+          </button>
+        </div>
       )}
     </div>
   );
