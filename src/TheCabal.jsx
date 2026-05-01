@@ -2182,7 +2182,6 @@ function TheCabalApp() {
       Promise.all(imgPromises),
       new Promise(res => setTimeout(res, 6000)),
     ]);
-    _wasPreloaded.current = true;
     console.log("[prep] decode started for", cards.length, "cards");
   }, []);
 
@@ -2231,10 +2230,9 @@ function TheCabalApp() {
         const cards = nextPackCards || drawPack(luckyRef.current);
         pendingCardsRef.current = cards; // sync — available immediately in burst
         setRC(cards); // async — for UI
-        const wasPreloaded = _wasPreloaded.current;
+        const wasPreloaded = !!nextPackCards; // true if we used pre-drawn cards
         setNextPackCards(null);
-        _wasPreloaded.current = false;
-        pendingCardsRef._wasPreloaded = wasPreloaded; // pass to burst
+        pendingCardsRef._wasPreloaded = wasPreloaded;
         if (!nextPackCards) {
           // Not pre-fetched yet — start now
           cards.filter(c => c.collection && c.token_id)
@@ -2251,7 +2249,7 @@ function TheCabalApp() {
       const toLoad = pendingCardsRef.current || revealCards; // use ref for sync access
 
       // Use pre-decoded images from prepareNextPack, OR fetch+decode now
-      const wasPreloaded = pendingCardsRef._wasPreloaded;
+      const wasPreloaded = pendingCardsRef._wasPreloaded || false;
       console.log("[burst] wasPreloaded:", wasPreloaded);
       const waitForImages = wasPreloaded
         ? (_preloadDone.current || Promise.resolve()) // pre-decoded — instant
