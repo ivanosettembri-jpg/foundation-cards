@@ -2182,7 +2182,6 @@ function TheCabalApp() {
       Promise.all(imgPromises),
       new Promise(res => setTimeout(res, 6000)),
     ]);
-    console.log("[prep] decode started for", cards.length, "cards");
   }, []);
 
   const checkAchi = useCallback((coll,total,prev,burnTotal) => {
@@ -2250,7 +2249,6 @@ function TheCabalApp() {
 
       // Use pre-decoded images from prepareNextPack, OR fetch+decode now
       const wasPreloaded = pendingCardsRef._wasPreloaded || false;
-      console.log("[burst] wasPreloaded:", wasPreloaded);
       const waitForImages = wasPreloaded
         ? (_preloadDone.current || Promise.resolve()) // pre-decoded — instant
         : Promise.race([                              // fetch+decode now
@@ -2267,9 +2265,15 @@ function TheCabalApp() {
   const handleOpen10 = useCallback(() => {
     if (st.packs<10||phase!=="idle") return;
     setOwnedIds(new Set(st.collection.map(c=>c.id)));
-    setRC(draw10Packs());
+    const cards10 = draw10Packs();
+    pendingCardsRef.current = cards10; // sync for burst handler
+    pendingCardsRef._wasPreloaded = false; // x10 not pre-decoded, burst will fetch
+    setRC(cards10);
     setRD(false);
     setIsBulk(true);
+    // Pre-fetch x10 images during shake animation
+    cards10.filter(c=>c.collection&&c.token_id)
+      .forEach(c=>getAlchemyThumb(c.collection,c.token_id).catch(()=>{}));
     setNextIsLucky(Math.random() < LUCKY_CHANCE); // reset lucky state after x10
     setLuckyOpen(false); // x10 ignores lucky
     save({ packs:st.packs-10 });
@@ -2289,13 +2293,11 @@ function TheCabalApp() {
   // Start prefetching as soon as app is loaded and when returning to idle
   useEffect(() => {
     if (!loaded || !ACCOUNTS.length) return;
-    console.log("[idle] loaded, ACCOUNTS:", ACCOUNTS.length, "— prefetching next pack");
     prepareNextPack();
   }, [loaded]);
 
   useEffect(() => {
     if (phase !== "idle" || !loaded || !ACCOUNTS.length) return;
-    console.log("[idle] back to idle — prefetching next pack");
     prepareNextPack();
   }, [phase]);
 
