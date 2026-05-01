@@ -12771,13 +12771,14 @@ function CardImage({ card, style }) {
 
   if (!src) return null;
   return (
-    <img src={src} alt=""
+    <img src={src} alt="" draggable="false"
+      onDragStart={e=>e.preventDefault()}
       onError={() => {
         const next = fallbacks[errStep];
         if (next) { setErrStep(s=>s+1); setSrc(next); }
         else setSrc(null);
       }}
-      style={style}
+      style={{...style, pointerEvents:"none"}}
     />
   );
 }
@@ -13670,17 +13671,19 @@ function FlippableCard({ card, dispW=120, noFlipOnClick=false, allowTilt=false }
           backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden",
           transform:"rotateY(180deg)",
           background: r.color + "cc", border:"3px solid rgba(255,255,255,0.55)", borderRadius:7,
-          display:"flex", flexDirection:"column",
+          display:"flex", flexDirection:"column", position:"relative",
           alignItems:"center", justifyContent:"space-between", gap:0, padding:10,
           paddingTop: Math.round(dispW * 0.1),
           paddingBottom: Math.round(dispW * 0.08),
         }}>
-          {/* Logo with AnimatedEye overlaid on its eye — same as pack */}
-          <img
+          {/* Logo — top-right corner, small */}
+          <div style={{position:"absolute", top: Math.round(dispW*0.05), right: Math.round(dispW*0.05)}}>
+            <img
               src={`data:image/svg+xml;base64,${LOGO_B64}`}
               alt="networked.cards"
-              style={{width: Math.round(dispW * 0.72), height:"auto", opacity:0.85, filter:"brightness(0) invert(1)"}}
+              style={{width: Math.round(dispW * 0.32), height:"auto", opacity:0.55, filter:"brightness(0) invert(1)"}}
             />
+          </div>
           <div style={{textAlign:"center",width:"100%",padding:"0 6px"}}>
             <div style={{fontFamily:"'DM Mono',monospace",fontSize:fontSize(.065),color:"rgba(255,255,255,0.7)",letterSpacing:.5,marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.name.toUpperCase()}</div>
             <div style={{fontFamily:"'DM Mono',monospace",fontSize:fontSize(.085),color:"rgba(255,255,255,0.92)",fontWeight:500,lineHeight:1.3,wordBreak:"break-word"}}>{card.name}</div>
@@ -14788,8 +14791,12 @@ function TheCabalApp() {
       const user = result.user;
       setAuthUser(user);
       const cloud = await cloudLoad(user.uid);
-      if (cloud && (cloud.collection?.length||0) > st.collection.length) {
-        setSt(prev => { const m={...prev,...cloud}; persist(m); return m; });
+      if (cloud) {
+        // Merge: take cloud if it has more cards, then always save back
+        const useCloud = (cloud.collection?.length||0) >= (st.collection?.length||0);
+        const merged = useCloud ? {...st,...cloud} : st;
+        setSt(prev => { const m={...prev,...merged}; persist(m); return m; });
+        await cloudSave(user.uid, merged);
         setNotif("☁ cloud save loaded"); setTimeout(()=>setNotif(null),2600);
       } else {
         await cloudSave(user.uid, st);
@@ -14799,14 +14806,38 @@ function TheCabalApp() {
   }, [st, persist]);
 
   const handleGoogleLogout = useCallback(async () => {
+    // Save current state to cloud before logging out
+    if (authUser) await cloudSave(authUser.uid, st);
     if (window._fbAuth && window.firebaseSignOut) await window.firebaseSignOut(window._fbAuth);
     setAuthUser(null);
-  }, []);
+    // Reset local state to prevent exploit: logged-out session gets a fresh start
+    // so users cannot accumulate cards across multiple accounts from the same device
+    const fresh = {...INIT, day: today()};
+    setSt(fresh);
+    persist(fresh);
+  }, [authUser, st, persist]);
 
   useEffect(() => {
     if (!window._fbAuth || !window.onAuthStateChanged) return;
-    return window.onAuthStateChanged(window._fbAuth, u => setAuthUser(u||null));
-  }, []);
+    return window.onAuthStateChanged(window._fbAuth, async u => {
+      setAuthUser(u||null);
+      if (u && loaded) {
+        // Auto-sync on auth state restore (page reload while logged in)
+        const cloud = await cloudLoad(u.uid);
+        if (cloud && (cloud.collection?.length||0) > 0) {
+          setSt(prev => {
+            // Take whichever has more cards
+            if ((cloud.collection?.length||0) > (prev.collection?.length||0)) {
+              const merged = {...prev,...cloud};
+              persist(merged);
+              return merged;
+            }
+            return prev;
+          });
+        }
+      }
+    });
+  }, [loaded, persist]);
 
   const notify = useCallback((msg) => {
     setNotif(msg); setTimeout(()=>setNotif(null), 2600);
@@ -15369,7 +15400,7 @@ function CardModal({ card, onClose, isFav, onToggleFav }) {
         </>}
       </div>
 
-      {/* Price + pulled date row */}
+      {/* Price + pulled date + artwork link row */}
       <div
         onClick={e=>e.stopPropagation()}
         style={{
@@ -15387,6 +15418,21 @@ function CardModal({ card, onClose, isFav, onToggleFav }) {
               {new Date(card._pulledAt).toLocaleDateString("en-GB",{day:"numeric",month:"numeric",year:"numeric"})}
             </span>
           </div>
+        )}
+        {card.image_cid && (
+          <a
+            href={`https://ipfs.io/ipfs/${card.image_cid}`}
+            target="_blank" rel="noopener noreferrer"
+            style={{
+              fontSize:9, letterSpacing:1, color:"#555", textTransform:"uppercase",
+              textDecoration:"none", borderBottom:"1px solid #333",
+              transition:"color .15s, border-color .15s", marginTop:2,
+            }}
+            onMouseEnter={e=>{e.currentTarget.style.color="#999";e.currentTarget.style.borderColor="#666";}}
+            onMouseLeave={e=>{e.currentTarget.style.color="#555";e.currentTarget.style.borderColor="#333";}}
+          >
+            view full resolution artwork ↗
+          </a>
         )}
       </div>
     </div>
@@ -15439,20 +15485,7 @@ function LazyCard({ card, dispW, notify, count, onCardClick, isFav, onToggleFav 
               width:18,height:18,display:"flex",alignItems:"center",justifyContent:"center",
               fontSize:7,color:"#888",pointerEvents:"none",zIndex:2}}>×{count}</div>
           )}
-          {/* Heart / favorite button */}
-          {onToggleFav && (
-            <div
-              onClick={e=>{e.stopPropagation();onToggleFav(card.id);}}
-              style={{position:"absolute",top:4,right:"calc(50% - 60px)",
-                zIndex:10,cursor:"pointer",fontSize:12,
-                color:isFav?"#e74c3c":"#333",
-                transition:"color .15s, transform .1s",
-                lineHeight:1,
-              }}
-              onMouseEnter={e=>e.currentTarget.style.transform="scale(1.2)"}
-              onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}
-            >♥</div>
-          )}
+          {/* Heart removed from grid — visible only in CardModal */}
 
         </>
       ) : (
@@ -15663,6 +15696,11 @@ function ExchangeView({ st, save, notify, uniqueCards, authUser }) {
             Send a card to another player by generating a single-use claim token.
             The card is removed from your collection immediately.
           </p>
+          {sortedCards.length === 0 && (
+            <p style={{...mono, fontSize:9, color:"#383838", letterSpacing:.3, margin:0}}>
+              Please allow a few seconds for your full collection to load.
+            </p>
+          )}
           <div style={{display:"flex",gap:8}}>
             <button style={btnStyle(false)} onClick={()=>setMode("send")}>SEND A CARD</button>
             <button style={btnStyle(false)} onClick={()=>setMode("claim")}>CLAIM A CARD</button>
@@ -15739,6 +15777,7 @@ function ExchangeView({ st, save, notify, uniqueCards, authUser }) {
               onMouseDown={onPointerDown} onMouseMove={onPointerMove}
               onMouseUp={onPointerUp} onMouseLeave={onPointerUp}
               onTouchStart={onPointerDown} onTouchMove={onPointerMove} onTouchEnd={onPointerUp}
+              onDragStart={e=>e.preventDefault()}
             >
               <FlippableCard card={selected} dispW={CARD_W}/>
             </div>
