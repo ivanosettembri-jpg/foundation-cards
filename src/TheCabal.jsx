@@ -2245,15 +2245,16 @@ function TheCabalApp() {
       setRD(false);
       const toLoad = pendingCardsRef.current || revealCards; // use ref for sync access
 
-      // Pre-fetch all Alchemy thumbs — wait up to 5s for all, or reveal when first is ready
-      const prefetches = toLoad
-        .filter(c => c.collection && c.token_id)
-        .map(c => getAlchemyThumb(c.collection, c.token_id).catch(()=>null));
-      // Wait for ALL card images (max 6s) so reveal shows cards with images
-      Promise.race([
-        Promise.all(prefetches),
-        new Promise(res => setTimeout(res, 6000)),
-      ]).then(() => { setLoadMsg(""); setPhase("revealing"); });
+      // Use pre-decoded images from prepareNextPack, OR fetch+decode now
+      const waitForImages = nextPackCards
+        ? (_preloadDone.current || Promise.resolve()) // pre-fetched — just wait for decode
+        : Promise.race([                               // not pre-fetched — fetch now
+            Promise.all(toLoad.filter(c=>c.collection&&c.token_id)
+              .map(c=>getAlchemyThumb(c.collection,c.token_id).catch(()=>null))),
+            new Promise(res=>setTimeout(res,5000))
+          ]);
+      Promise.race([waitForImages, new Promise(res=>setTimeout(res,5000))])
+        .then(() => { setLoadMsg(""); setPhase("revealing"); });
     }
   }, []);
 
