@@ -119,8 +119,8 @@ function CardImage({ card, style }) {
         if (cancelled) return;
         if (url) { setSrc(url); return; }
         if (attempt < 2) setTimeout(() => { if (!cancelled) tryAlchemy(attempt+1); }, 3000);
-        else if (card.image_cid) setSrc(`https://w3s.link/ipfs/${card.image_cid}/nft.png`);
-      }).catch(() => { if (!cancelled && card.image_cid) setSrc(`https://w3s.link/ipfs/${card.image_cid}/nft.png`); });
+        else { /* no Alchemy image, skip IPFS to avoid cert errors */ }
+      }).catch(() => { /* Alchemy fetch failed */ });
     tryAlchemy(1);
     return () => { cancelled = true; };
   }, [card.id]);
@@ -2279,6 +2279,21 @@ function TheCabalApp() {
     if (best.rarity==="LR") notify(`✦ LEGENDARY! ${best.name}`);
     else if (best.rarity==="UR") notify(`◆ ULTRA RARE: ${best.name}`);
   }, [notify]);
+
+  // Start prefetching as soon as app is loaded and when returning to idle
+  useEffect(() => {
+    if (!loaded || !ACCOUNTS.length) return;
+    console.log("[idle] loaded, ACCOUNTS:", ACCOUNTS.length, "— prefetching next pack");
+    prepareNextPack();
+  }, [loaded]);
+
+  useEffect(() => {
+    if (phase !== "idle" || !loaded || !ACCOUNTS.length) return;
+    console.log("[idle] back to idle — prefetching next pack");
+    prepareNextPack();
+  }, [phase]);
+
+
 
   /* take all after reveal */
   const handleTakeAll = useCallback(() => {
