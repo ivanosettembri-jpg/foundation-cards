@@ -33,46 +33,38 @@ const _alchemyPromises = {}; // deduplication: multiple callers share one fetch
 // Fetches historical sale data from Alchemy. Updates rarity if sold above thresholds.
 // LR ≥ 1 ETH, UR ≥ 0.1 ETH, R ≥ 0.01 ETH. Runs silently in background.
 const _saleFetched = new Set();
-// Fast rarity fetch — called during shake, resolves before reveal
-async function fetchRarityFromReservoir(collection, tokenId) {
-  if (!collection || !tokenId) return null;
-  try {
-    const url = `https://api.reservoir.tools/tokens/v7?tokens=${collection}:${tokenId}&includeLastSale=true`;
-    const r = await fetch(url, { headers: { "x-api-key": "demo" } });
-    if (!r.ok) return null;
-    const data = await r.json();
-    const lastSaleEth = data?.tokens?.[0]?.token?.lastSale?.price?.amount?.native || 0;
-    if (!lastSaleEth) return null;
-    return lastSaleEth >= 10 ? "LR" : lastSaleEth >= 2 ? "UR" : lastSaleEth >= 0.5 ? "R" : null;
-  } catch { return null; }
-}
-
 async function fetchSaleRarity(card, onRarityUpdate, onSaleLog) {
   if (!card.collection || !card.token_id) return;
   const key = `sale_${card.collection}_${card.token_id}`;
   if (_saleFetched.has(key)) return;
   _saleFetched.add(key);
   try {
-    const url = `https://api.reservoir.tools/tokens/v7?tokens=${card.collection}:${card.token_id}&includeLastSale=true`;
-    console.log("[reservoir] fetching", card.name, card.collection?.slice(-6), card.token_id);
-    const r = await fetch(url, { headers: { "x-api-key": "demo" } });
-    if (!r.ok) { console.log("[reservoir] HTTP", r.status); return; }
+    const url = `https://eth-mainnet.g.alchemy.com/nft/v3/${ALCHEMY_KEY}/getNFTSales` +
+      `?contractAddress=${card.collection}&tokenId=${card.token_id}&order=desc&limit=5`;
+    const r = await fetch(url);
+    if (!r.ok) return;
     const data = await r.json();
-    const token = data?.tokens?.[0]?.token;
-    const lastSaleEth = token?.lastSale?.price?.amount?.native || 0;
-    console.log("[reservoir]", card.name, "→ lastSale:", lastSaleEth, "ETH");
-    if (!lastSaleEth) return;
-    if (onSaleLog) onSaleLog(card.name, lastSaleEth);
+    const sales = data?.nftSales || [];
+    if (!sales.length) return;
+    // Find highest sale in ETH (sellerFee is in wei)
+    // Alchemy returns sellerFee in wei, or taker/maker price in various formats
+    const maxWei = Math.max(...sales.map(s => {
+      const raw = s.sellerFee?.amount || s.taker?.price || s.maker?.price ||
+                  s.sellerFee?.amount || 0;
+      return parseInt(raw) || 0;
+    }));
+    const maxEth = maxWei / 1e18;
+    console.log("Sale found:", maxEth.toFixed(4), "ETH for", card.collection, card.token_id);
+    if (onSaleLog) onSaleLog(card.name, maxEth);
     const newRarity =
-      lastSaleEth >= 10  ? "LR" :
-      lastSaleEth >= 2   ? "UR" :
-      lastSaleEth >= 0.5 ? "R"  : null;
-    console.log("[reservoir]", card.name, "→ newRarity:", newRarity || "no upgrade");
+      maxEth >= 10  ? "LR" :
+      maxEth >= 2   ? "UR" :
+      maxEth >= 0.5 ? "R"  : null;
+    // Note: C = 0–0.49 ETH (no upgrade needed, it's the default)
     if (newRarity && RARITY_ORDER.indexOf(newRarity) < RARITY_ORDER.indexOf(card.rarity)) {
-      console.log("[reservoir] UPGRADE", card.name, card.rarity, "→", newRarity);
-      onRarityUpdate(card.id, newRarity, lastSaleEth);
+      onRarityUpdate(card.id, newRarity, maxEth);
     }
-  } catch(e) { console.log("[reservoir] error:", e.message); }
+  } catch {}
 }
 
 async function getAlchemyThumb(collection, tokenId) {
@@ -1840,7 +1832,13 @@ async function loadFoundationPool(onProgress) {
       id:       r.collection.slice(-8) + "_" + r.token_id,
       handle:   r.creator ? r.creator.slice(0,6) + "..." + r.creator.slice(-4) : (r.collection ? r.collection.slice(0,6) + "..." + r.collection.slice(-4) : ""),
       name:     "FND #" + String(idx+1).padStart(6,"0"),
-      rarity:   "C", // all cards start as Common; Reservoir upgrades in background
+      rarity:   (() => {
+        const tid = parseInt(r.token_id) || 999999;
+        if (tid <= 100)    return "LR";
+        if (tid <= 1000)   return "UR";
+        if (tid <= 10000)  return "R";
+        return "C";
+      })(),
       cat:      "Foundation",
       bio:      "Foundation artist. " + n + " work" + (n>1?"s":"") + " on-chain.",
       image_cid: r.image_cid,
@@ -2241,20 +2239,10 @@ function TheCabalApp() {
         nextPackCardsRef.current = null;
         pendingCardsRef._wasPreloaded = wasPreloaded;
         if (!nextPackCardsRef.current && !wasPreloaded) {
+          // Not pre-fetched yet — start now
           cards.filter(c => c.collection && c.token_id)
             .forEach(c => getAlchemyThumb(c.collection, c.token_id).catch(()=>{}));
         }
-        // Fetch rarity from Reservoir in parallel — resolves before burst reveal
-        Promise.all(
-          cards.filter(c => c.collection && c.token_id).map(c =>
-            fetchRarityFromReservoir(c.collection, c.token_id).then(r => {
-              if (r) {
-                console.log("[rarity]", c.name, "→", r);
-                setRarityUpgrades(prev => ({...prev, [c.id]: {rarity: r}}));
-              }
-            })
-          )
-        ).catch(()=>{});
       }
       setPhase("burst");
       return;
