@@ -2233,7 +2233,7 @@ function TheCabalApp() {
         const wasPreloaded = !!nextPackCardsRef.current;
         nextPackCardsRef.current = null;
         pendingCardsRef._wasPreloaded = wasPreloaded;
-        if (!nextPackCards) {
+        if (!nextPackCardsRef.current && !wasPreloaded) {
           // Not pre-fetched yet — start now
           cards.filter(c => c.collection && c.token_id)
             .forEach(c => getAlchemyThumb(c.collection, c.token_id).catch(()=>{}));
