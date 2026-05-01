@@ -2026,7 +2026,7 @@ function TheCabalApp() {
   const packColorIdx = (st.totalOpened ?? 0) % 4;
   const [revealCards,setRC]  = useState([]);
   const [revealDone,setRD]   = useState(false);
-  const [nextPackCards,setNextPackCards] = useState(null); // pre-drawn for instant open
+  const nextPackCardsRef = React.useRef(null); // pre-drawn cards — ref for sync access
   const [bulkModal,setBulkModal] = useState(null);
   const [isBulk,setIsBulk]   = useState(false);
   const isBulkRef = useRef(false);
@@ -2163,7 +2163,7 @@ function TheCabalApp() {
   const prepareNextPack = useCallback(() => {
     if (!ACCOUNTS.length) return;
     const cards = drawPack(false);
-    setNextPackCards(cards);
+    nextPackCardsRef.current = cards;
     // Fetch URLs then download actual image bytes — store completion promise
     const imgPromises = cards.filter(c => c.collection && c.token_id).map(c =>
       getAlchemyThumb(c.collection, c.token_id).then(url => {
@@ -2227,11 +2227,11 @@ function TheCabalApp() {
   const handleAnimEnd = useCallback(p => {
     if (p==="shaking") {
       if (!isBulkRef.current) {
-        const cards = nextPackCards || drawPack(luckyRef.current);
+        const cards = nextPackCardsRef.current || drawPack(luckyRef.current);
         pendingCardsRef.current = cards; // sync — available immediately in burst
         setRC(cards); // async — for UI
-        const wasPreloaded = !!nextPackCards; // true if we used pre-drawn cards
-        setNextPackCards(null);
+        const wasPreloaded = !!nextPackCardsRef.current;
+        nextPackCardsRef.current = null;
         pendingCardsRef._wasPreloaded = wasPreloaded;
         if (!nextPackCards) {
           // Not pre-fetched yet — start now
