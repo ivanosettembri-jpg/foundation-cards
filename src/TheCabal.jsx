@@ -12903,7 +12903,7 @@ const PACK_PITY_IMAGES = [
    CONFIG
 ══════════════════════════════════════════════════════ */
 const MAX_PACKS   = 10;
-const PACK_REGEN  = 90;    // seconds (1:30)
+const PACK_REGEN  = 60;    // seconds (1:00)
 const CARDS_PER   = 5;
 const LUCKY_CHANCE = 0.05;  // 5% chance per pack
 const SAVE_KEY    = "networked_cards_save_v1";
@@ -13719,15 +13719,31 @@ function FlippableCard({ card, dispW=120, noFlipOnClick=false, allowTilt=false }
             <div style={{fontFamily:"'DM Mono',monospace",fontSize:fontSize(.06),color:card.rarity==="SR"?"rgba(255,255,255,0.4)":"rgba(255,255,255,0.55)",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{card.cat}</div>
           </div>
           <div style={{width:"60%",height:1,background:"rgba(255,255,255,0.2)",flexShrink:0}}/>
-          {card.handle ? (
+          {/* Buttons: artwork + etherscan */}
+          <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6,width:"90%"}}>
+            {card.image_cid && (
+              <a href={`https://ipfs.io/ipfs/${card.image_cid}`} target="_blank" rel="noopener noreferrer"
+                onClick={e=>e.stopPropagation()}
+                style={{
+                  fontFamily:"'DM Mono',monospace",fontSize:fontSize(.058),color:"rgba(255,255,255,0.7)",
+                  letterSpacing:.5,textDecoration:"none",border:"1px solid rgba(255,255,255,0.25)",
+                  borderRadius:4,padding:"4px 8px",background:"rgba(255,255,255,0.07)",
+                  textAlign:"center",transition:"background .15s",width:"100%",
+                  whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",
+                }}
+                onMouseEnter={e=>{e.currentTarget.style.background='rgba(255,255,255,0.15)';}}
+                onMouseLeave={e=>{e.currentTarget.style.background='rgba(255,255,255,0.07)';}}
+              >view full resolution artwork ↗</a>
+            )}
+            {card.handle ? (
             <a href={etherscanUrl} target="_blank" rel="noopener noreferrer"
               onClick={e=>e.stopPropagation()}
               style={{
                 fontFamily:"'DM Mono',monospace",fontSize:fontSize(.065),color:"rgba(255,255,255,0.85)",
                 letterSpacing:.5,textDecoration:"none",border:"1px solid rgba(255,255,255,0.3)",
                 borderRadius:4,padding:"4px 8px",background:"rgba(255,255,255,0.1)",
-                textAlign:"center",transition:"background .15s",
-                whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"90%",
+                textAlign:"center",transition:"background .15s",width:"100%",
+                whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",
               }}
               onMouseEnter={e=>{e.currentTarget.style.background='rgba(255,255,255,0.2)';}}
               onMouseLeave={e=>{e.currentTarget.style.background='rgba(255,255,255,0.1)';}}
@@ -13736,6 +13752,7 @@ function FlippableCard({ card, dispW=120, noFlipOnClick=false, allowTilt=false }
             <div style={{fontFamily:"'DM Mono',monospace",fontSize:fontSize(.065),color:"rgba(255,255,255,0.3)",
               letterSpacing:.5,fontStyle:"italic"}}>???</div>
           )}
+          </div>  {/* end buttons column */}
         </div>
       </div>
     </div>
@@ -14788,11 +14805,15 @@ function TheCabalApp() {
     if (!loaded) return;
     const id = setInterval(() => {
       setSt(prev => {
-        if (prev.packs >= MAX_PACKS) { setRegenS(PACK_REGEN); return prev; }
         const elapsed = Math.floor((Date.now()-prev.lastRegen)/1000);
+        // If at cap, keep resetting lastRegen so time doesn't accumulate
+        if (prev.packs >= MAX_PACKS) { setRegenS(PACK_REGEN); if(elapsed>0){const r={...prev,lastRegen:Date.now()};persist(r);return r;} return prev; }
         setRegenS(PACK_REGEN - (elapsed % PACK_REGEN));
         if (elapsed >= PACK_REGEN) {
-          const next = { ...prev, packs:Math.min(MAX_PACKS,prev.packs+Math.floor(elapsed/PACK_REGEN)), lastRegen:Date.now() };
+          const gained = Math.floor(elapsed/PACK_REGEN);
+          const newPacks = Math.min(MAX_PACKS, prev.packs + gained);
+          // If capped after gaining, reset lastRegen to now to stop accumulation
+          const next = { ...prev, packs: newPacks, lastRegen: Date.now() };
           persist(next); return next;
         }
         return prev;
@@ -15085,8 +15106,21 @@ function TheCabalApp() {
 
   const uniqueCards = useMemo(() => {
     // collection is compact [{id, _uid, _pulledAt?}] — reconstruct full card data from ACCOUNTS_BY_ID
+    const SR_CONTRACT = "0x31ae2c5a7a2ad8d9074d6a98b5e2c1a0e664f6d9";
     const m = {};
     st.collection.forEach(c => {
+      // SR cards may not be in ACCOUNTS_BY_ID yet (e.g. after reload) — fetch lazily
+      if (!ACCOUNTS_BY_ID[c.id] && c.id.startsWith("sr_")) {
+        const tokenId = c.id.replace("sr_","");
+        ACCOUNTS_BY_ID[c.id] = {
+          id: c.id, name: `MC #${tokenId}`, rarity: "SR",
+          cat: "Manfredi Caracciolo", bio: "",
+          collection: SR_CONTRACT, token_id: tokenId,
+          handle: null, image_cid: null, creator: "manfredicaracciolo.eth",
+        };
+        // Trigger Alchemy fetch in background so image loads
+        getAlchemyThumb(SR_CONTRACT, tokenId);
+      }
       const acc = ACCOUNTS_BY_ID[c.id];
       if (!acc) return; // skip unknown ids (e.g. old accounts that were removed)
       if (!m[c.id]) m[c.id] = { ...acc, count: 0, _pulledAt: c._pulledAt || null };
@@ -15442,21 +15476,7 @@ function CardModal({ card, onClose, isFav, onToggleFav }) {
             </span>
           </div>
         )}
-        {card.image_cid && (
-          <a
-            href={`https://ipfs.io/ipfs/${card.image_cid}`}
-            target="_blank" rel="noopener noreferrer"
-            style={{
-              fontSize:9, letterSpacing:1, color:"#555", textTransform:"uppercase",
-              textDecoration:"none", borderBottom:"1px solid #333",
-              transition:"color .15s, border-color .15s", marginTop:2,
-            }}
-            onMouseEnter={e=>{e.currentTarget.style.color="#999";e.currentTarget.style.borderColor="#666";}}
-            onMouseLeave={e=>{e.currentTarget.style.color="#555";e.currentTarget.style.borderColor="#333";}}
-          >
-            view full resolution artwork ↗
-          </a>
-        )}
+
       </div>
     </div>
   );
@@ -15693,6 +15713,19 @@ function ExchangeView({ st, save, notify, uniqueCards, authUser }) {
           setLoading(false); return;
         }
 
+        // Register SR cards in ACCOUNTS_BY_ID so uniqueCards memo can find them
+        for (const nft of nfts) {
+          const tokenId = nft.tokenId || nft.id?.tokenId;
+          const id = `sr_${tokenId}`;
+          if (!ACCOUNTS_BY_ID[id]) {
+            ACCOUNTS_BY_ID[id] = {
+              id, name: nft.name || `MC #${tokenId}`, rarity: "SR",
+              cat: "Manfredi Caracciolo", bio: nft.description || "",
+              collection: SR_CONTRACT, token_id: String(tokenId),
+              handle: null, image_cid: null, creator: "manfredicaracciolo.eth",
+            };
+          }
+        }
         save({ collection: [...st.collection, ...newEntries] });
         if (firstCard) { setClaimedCard({ ...firstCard, count: newEntries.length }); setMode("claimed_sr"); }
         notify(`${newEntries.length} secret rare card${newEntries.length>1?"s":""} added!`);
@@ -16016,7 +16049,7 @@ function AboutView() {
     },
     {
       q: "Is this affiliated with networked.art?",
-      a: <>No. This is an independent experiment built for fun with CC0 assets. The name <a href="http://networked.cards" target="_blank" rel="noopener noreferrer" style={linkStyle}>networked.cards</a> is a tribute to the original platform.</>
+      a: <>No. This is an independent experiment built for fun with CC0 assets. The name <a href="http://networked.cards" target="_blank" rel="noopener noreferrer" style={linkStyle}>networked.cards</a> is a tribute.</>
     },
     {
       q: "How does it work technically?",
@@ -16025,6 +16058,14 @@ function AboutView() {
     {
       q: "Do I need to connect my wallet?",
       a: <>No — and you never will. There are no blockchain transactions here. If any version of this website ever asks you to sign a transaction or connect a wallet, assume it is a scam.</>
+    },
+    {
+      q: "What are the drop rates?",
+      a: <>Each pack contains 5 cards. The base rates per card are: Common — 79.95%, Rare — 16.25%, Ultra Rare — 3.55%, Legendary — 0.25%. There is also a 5% chance per pack to open a Lucky Pack, which guarantees at least one Ultra Rare and one Rare among its 5 cards.</>
+    },
+    {
+      q: "How is rarity calculated?",
+      a: <>Rarity is derived from on-chain sale data. Tokens that sold for 10 ETH or more on Foundation are classified as Legendary. Sales between 2 and 9.999 ETH become Ultra Rare. Between 0.5 and 1.999 ETH earns the Rare tier. Everything else is Common. The data comes from Dune Analytics and covers the full trading history of the Foundation marketplace.</>
     },
     {
       q: "This is pointless.",
@@ -16044,12 +16085,12 @@ function AboutView() {
         marginBottom:32, borderBottom:"1px solid #1a1a1a", paddingBottom:24,
       }}>
         <p style={{marginTop:0}}>
-          Following Foundation's closure in April 2026, the community moved to rescue the art.
+          Following Foundation's closure in April 2026, the community raced to rescue the art.
         </p>
         <p>
           <a href="http://networked.cards" target="_blank" rel="noopener noreferrer" style={{...linkStyle, color:"#c0c0c0"}}>
             networked.cards
-          </a>{" "}transforms that entire catalog into a gacha-based discovery game.
+          </a>{" "}transforms that entire Foundation catalog into a gacha-based discovery game.
           Revisit, collect, and experience the digital artifacts that defined an era.
         </p>
       </div>
@@ -16087,6 +16128,14 @@ function AboutView() {
           )}
         </div>
       ))}
+
+      {/* Gyroscope toggle — mobile only */}
+      {typeof DeviceOrientationEvent !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches && (
+        <div style={{marginTop:24, borderTop:"1px solid #111", paddingTop:20}}>
+          <div style={{fontSize:9, letterSpacing:2, color:"#444", marginBottom:12, textTransform:"uppercase"}}>Settings</div>
+          <GyroToggleButton/>
+        </div>
+      )}
 
     </div>
   );
@@ -16222,14 +16271,12 @@ function CollectionView({ unique, notify, favoritesArr, onToggleFav }) {
 const DAILY_MISSIONS = [
   { id:"m_packs",   label:"Open 3 packs",                     check:st=>(st.missions.packsOpened||0)>=3,      reward:2 },
   { id:"m_ur",      label:"Pull an Ultra Rare or Legendary",  check:st=>st.missions.urPulled,                 reward:3 },
-  { id:"m_burn",    label:"Burn at least 1 duplicate",        check:st=>st.missions.burned||false,            reward:1 },
-  { id:"m_collect", label:"Have 5+ different rarities in collection", check:st=>st.missions.allRarities||false, reward:2 },
+  { id:"m_collect", label:"Have 4+ different rarities in collection", check:st=>st.missions.allRarities||false, reward:2 },
 ];
 const WEEKLY_MISSIONS = [
   { id:"w_packs20",  label:"Open 20 packs this week",          check:st=>(st.weekly?.packsOpened||0)>=20,     reward:5 },
   { id:"w_ur3",      label:"Pull 3 Ultra Rare cards this week",check:st=>(st.weekly?.urPulled||0)>=3,         reward:6 },
   { id:"w_unique",   label:"Collect 10 new unique cards",      check:st=>(st.weekly?.newUnique||0)>=10,       reward:4 },
-  { id:"w_forge",    label:"Use the Forge 3 times this week",  check:st=>(st.weekly?.forgeUsed||0)>=3,        reward:5 },
   { id:"w_lucky",    label:"Open a Lucky Pack",                check:st=>st.weekly?.gotLucky||false,          reward:8 },
 ];
 const MISSIONS_DEF = DAILY_MISSIONS; // keep compat
@@ -18388,23 +18435,7 @@ function MissionsView({ st, save, notify, uniqueCards }) {
       </Section>
 
       <Section label="STATS">
-        <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:14}}>
-          {Object.entries(RARITIES).map(([k,v])=>(
-            <div key={k} style={{background:v.color+"18",border:`1px solid ${v.color}40`,borderRadius:4,padding:"5px 12px",flex:"1 1 40%"}}>
-              <div style={{...mono,fontSize:8,color:v.accent,letterSpacing:.5,marginBottom:2}}>{v.name.toUpperCase()}</div>
-              <div style={{...mono,fontSize:14,color:v.accent,fontWeight:500}}>
-                {v.rate*100<1?(v.rate*100).toFixed(2):(v.rate*100).toFixed(2)}%
-              </div>
-            </div>
-          ))}
-        </div>
-        <div style={{...mono,fontSize:9,color:"#444",lineHeight:1.6,marginBottom:14}}>
-          ✦ lucky pack: 1 guaranteed UR + 1 R · 5% chance per pack
-        </div>
-        {/* Gyro toggle — mobile only */}
-        {typeof DeviceOrientationEvent !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches && (
-          <GyroToggleButton/>
-        )}
+        {/* Gyro toggle removed — now in About tab */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4}}>
           {[
             ["Packs opened",    st.totalOpened],
