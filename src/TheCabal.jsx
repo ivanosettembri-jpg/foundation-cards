@@ -14455,7 +14455,7 @@ const INIT = {
   weekly:{packsOpened:0,urPulled:0,newUnique:0,forgeUsed:0,gotLucky:false,claimed:false,week:""},
   ic:{best:0,neverTut:false},
   achievements:{firstPull:false,firstRare:false,firstUR:false,firstLR:false,
-    coll10:false,coll25:false,coll50:false,coll100:false,packs10:false,packs50:false,allLR:false,camp10:false,camp25:false,camp50:false,camp100:false,campBankrupt:false},
+    coll10:false,coll100:false,coll250:false,coll1000:false,coll5000:false,packs10:false,packs50:false,allLR:false,camp10:false,camp25:false,camp50:false,camp100:false,campBankrupt:false},
 };
 
 /* ══════════════════════════════════════════════════════
@@ -14933,8 +14933,11 @@ function TheCabalApp() {
     if(coll.some(c=>rar(c.id)==="R"))  a.firstRare=true;
     if(coll.some(c=>rar(c.id)==="UR"||rar(c.id)==="LR")) a.firstUR=true;
     if(coll.some(c=>rar(c.id)==="LR")) a.firstLR=true;
-    if(u.size>=10)  a.coll10=true;  if(u.size>=25)  a.coll25=true;
-    if(u.size>=50)  a.coll50=true;  if(u.size>=100) a.coll100=true;
+    if(u.size>=10)   a.coll10=true;
+    if(u.size>=100)  a.coll100=true;
+    if(u.size>=250)  a.coll250=true;
+    if(u.size>=1000) a.coll1000=true;
+    if(u.size>=5000) a.coll5000=true;
     if(total>=10)   a.packs10=true; if(total>=50)   a.packs50=true; if(total>=100) a.packs100=true;
     if(ACCOUNTS.filter(x=>x.rarity==="LR").every(x=>u.has(x.id))) a.allLR=true;
     if(ACCOUNTS.filter(x=>x.rarity==="C").every(x=>u.has(x.id)))  a.allC=true;
@@ -16355,9 +16358,10 @@ const ACHI_DEF = [
   { id:"packs50",     s:"GACHA", label:"Pack Maniac",      desc:"Open 50 packs total",                 reward:3 },
   { id:"packs100",    s:"GACHA", label:"Pack Obsession",   desc:"Open 100 packs total",                reward:5 },
   { id:"coll10",      s:"GACHA", label:"Collector I",      desc:"Collect 10 unique cards",             reward:1 },
-  { id:"coll25",      s:"GACHA", label:"Collector II",     desc:"Collect 25 unique cards",             reward:2 },
-  { id:"coll50",      s:"GACHA", label:"Collector III",    desc:"Collect 50 unique cards",             reward:3 },
-  { id:"coll100",     s:"GACHA", label:"Collector IV",     desc:"Collect 100 unique cards",            reward:5 },
+  { id:"coll100",     s:"GACHA", label:"Collector II",     desc:"Collect 100 unique cards",            reward:3 },
+  { id:"coll250",     s:"GACHA", label:"Collector III",    desc:"Collect 250 unique cards",            reward:4 },
+  { id:"coll1000",    s:"GACHA", label:"Collector IV",     desc:"Collect 1000 unique cards",           reward:10 },
+  { id:"coll5000",    s:"GACHA", label:"Collector V",      desc:"Collect 5000 unique cards",           reward:20 },
   { id:"allLR",       s:"GACHA", label:"Legendary Row",    desc:"Collect all Legendary cards",         reward:10 },
   { id:"fullSet",     s:"GACHA", label:"networked.cards",  desc:"Collect every card in Season One",    reward:500 },
   // ── CAMPAIGN ──
@@ -18486,6 +18490,40 @@ function MissionsView({ st, save, notify, uniqueCards }) {
       <CollapsibleSection label="ACHIEVEMENTS" badge={hasAchiBadge}>
         {ACHI_DEF.filter(a=>a.s==="GACHA").map(a=><AchiRow key={a.id} a={a}/>)}
       </CollapsibleSection>
+
+      {/* ── STATS — always visible below all dropdowns ── */}
+      <div style={{marginTop:20, paddingTop:16, borderTop:"1px solid #111"}}>
+        <div style={{fontFamily:"'DM Mono',monospace", fontSize:9, color:"#555", letterSpacing:2, marginBottom:12}}>STATS</div>
+        <div style={{display:"flex", flexWrap:"wrap", gap:8, fontFamily:"'DM Mono',monospace"}}>
+          <div style={{flex:"1 1 40%", background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:4, padding:"8px 12px"}}>
+            <div style={{fontSize:7, color:"#444", letterSpacing:1, marginBottom:3}}>PACKS OPENED</div>
+            <div style={{fontSize:16, color:"#666"}}>{st.totalOpened || 0}</div>
+          </div>
+          <div style={{flex:"1 1 40%", background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:4, padding:"8px 12px"}}>
+            <div style={{fontSize:7, color:"#444", letterSpacing:1, marginBottom:3}}>UNIQUE CARDS</div>
+            <div style={{fontSize:16, color:"#666"}}>{uniqueCards.filter(c=>c.rarity!=="SR").length}</div>
+          </div>
+          <div style={{flex:"1 1 40%", background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:4, padding:"8px 12px"}}>
+            <div style={{fontSize:7, color:"#444", letterSpacing:1, marginBottom:3}}>RAREST PULL</div>
+            <div style={{fontSize:14, color:
+              uniqueCards.some(c=>c.rarity==="LR") ? RARITIES.LR.accent :
+              uniqueCards.some(c=>c.rarity==="UR") ? RARITIES.UR.accent :
+              uniqueCards.some(c=>c.rarity==="R")  ? RARITIES.R.accent  : "#444"
+            }}>
+              {uniqueCards.some(c=>c.rarity==="LR") ? "LEGENDARY" :
+               uniqueCards.some(c=>c.rarity==="UR") ? "ULTRA RARE" :
+               uniqueCards.some(c=>c.rarity==="R")  ? "RARE" : "—"}
+            </div>
+          </div>
+          <div style={{flex:"1 1 40%", background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:4, padding:"8px 12px"}}>
+            <div style={{fontSize:7, color:"#444", letterSpacing:1, marginBottom:3}}>TOTAL CARDS</div>
+            <div style={{fontSize:16, color:"#666"}}>{st.collection?.length || 0}</div>
+          </div>
+        </div>
+        <div style={{fontFamily:"'DM Mono',monospace", fontSize:9, color:"#444", marginTop:10, lineHeight:1.6}}>
+          ✦ lucky pack: 1 guaranteed UR + 1 R · 5% chance per pack
+        </div>
+      </div>
     </div>
   );
 }
