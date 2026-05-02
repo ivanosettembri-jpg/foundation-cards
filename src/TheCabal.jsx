@@ -13389,32 +13389,6 @@ function CardFace({ card, dispW, holoPos={x:0.5,y:0.5}, holoActive=false, allowT
         }}/>
       )}
 
-      {/* SR rarity: silver prismatic shimmer on front — elegant, always-on */}
-      {card.rarity === "SR" && (<>
-        {/* Layer 1: directional silver stripe */}
-        <div style={{
-          position:"absolute", inset:0, zIndex:4, pointerEvents:"none",
-          borderRadius:7, overflow:"hidden",
-          background:`linear-gradient(${(120 + holoPos.x*50).toFixed(0)}deg, transparent 20%, rgba(200,210,255,0.06) 38%, rgba(255,255,255,${holoActive?0.20:0.10}) 50%, rgba(200,210,255,0.06) 62%, transparent 80%)`,
-          mixBlendMode:"screen", transition:"background 0.08s ease",
-        }}/>
-        {/* Layer 2: soft radial glare spot */}
-        <div style={{
-          position:"absolute", inset:0, zIndex:5, pointerEvents:"none",
-          borderRadius:7, overflow:"hidden",
-          background:`radial-gradient(ellipse 50% 40% at ${(holoPos.x*100).toFixed(1)}% ${(holoPos.y*100).toFixed(1)}%, rgba(255,255,255,${holoActive?0.18:0.06}) 0%, transparent 70%)`,
-          mixBlendMode:"screen", transition:"background 0.1s ease",
-        }}/>
-        {/* Layer 3: subtle rainbow tint sweep */}
-        <div style={{
-          position:"absolute", inset:0, zIndex:6, pointerEvents:"none",
-          borderRadius:7, overflow:"hidden",
-          background:`linear-gradient(${(200 + holoPos.x*60 + holoPos.y*20).toFixed(0)}deg, rgba(180,160,255,0.04) 0%, rgba(160,220,255,0.06) 33%, rgba(200,255,200,0.04) 66%, rgba(255,200,180,0.05) 100%)`,
-          mixBlendMode:"screen", opacity: holoActive ? 1 : 0.5,
-          transition:"opacity 0.3s ease",
-        }}/>
-      </>)}
-
             {card.rarity === "UR" && (()=>{
         const px    = (holoPos.x * 100).toFixed(1);
         const py    = (holoPos.y * 100).toFixed(1);
@@ -13766,26 +13740,7 @@ function FlippableCard({ card, dispW=120, noFlipOnClick=false, allowTilt=false }
                 onMouseLeave={e=>{e.currentTarget.style.background='rgba(255,255,255,0.07)';}}
               >view full resolution ↗</a>
             )}
-            {card.rarity === "SR" ? (
-            (() => {
-              const slug = (card.name||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
-              const srUrl = `https://superrare.com/${card.collection}/${slug}-${card.token_id}`;
-              return (
-                <a href={srUrl} target="_blank" rel="noopener noreferrer"
-                  onClick={e=>e.stopPropagation()}
-                  style={{
-                    fontFamily:"'DM Mono',monospace",fontSize:fontSize(.062),color:"rgba(255,255,255,0.85)",
-                    letterSpacing:.5,textDecoration:"none",border:"1px solid rgba(255,255,255,0.35)",
-                    borderRadius:4,padding:"4px 8px",background:"rgba(255,255,255,0.08)",
-                    textAlign:"center",transition:"background .15s",width:"100%",
-                    whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",
-                  }}
-                  onMouseEnter={e=>{e.currentTarget.style.background='rgba(255,255,255,0.18)';}}
-                  onMouseLeave={e=>{e.currentTarget.style.background='rgba(255,255,255,0.08)';}}
-                >view on superrare ↗</a>
-              );
-            })()
-          ) : card.handle ? (
+            {card.handle ? (
             <a href={etherscanUrl} target="_blank" rel="noopener noreferrer"
               onClick={e=>e.stopPropagation()}
               style={{
@@ -15607,9 +15562,7 @@ function AutoClaimModal({ token, st, save, notify, onDone }) {
     }).then(r=>r.json()).then(data => {
       if (data.error) { setStatus("error"); setError(data.error); return; }
       const card = data.cardData;
-      const newEntry = { id:card.id, _uid: card._uid || `${card.id}_${Date.now()}`,
-                         tradedAt: Date.now(), _pulledAt: card._pulledAt || null,
-                         ...(card.image_url ? { image_url: card.image_url } : {}) };
+      const newEntry = { id:card.id, _uid: card._uid || `${card.id}_${Date.now()}`, tradedAt: Date.now() };
       const exA = {...(st.achievements||{}), exRecvC:true};
       if(card.rarity==="R"||card.rarity==="UR"||card.rarity==="LR") exA.exRecvR=true;
       save({ collection:[...st.collection, newEntry], achievements:exA });
@@ -15690,8 +15643,7 @@ function ExchangeView({ st, save, notify, uniqueCards, authUser }) {
           cardData: { id: selected.id, name: selected.name, rarity: selected.rarity,
                       handle: selected.handle, cat: selected.cat, image_cid: selected.image_cid,
                       creator: selected.creator, collection: selected.collection,
-                      token_id: selected.token_id, bio: selected.bio, image_url: selected.image_url || null,
-                      _pulledAt: selected._pulledAt || null,
+                      token_id: selected.token_id, bio: selected.bio,
                       _uid: `${selected.id}_${Date.now()}` }
         })
       });
@@ -15803,9 +15755,7 @@ function ExchangeView({ st, save, notify, uniqueCards, authUser }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Token invalid or already used");
       const card = data.cardData;
-      const newEntry = { id: card.id, _uid: card._uid || `${card.id}_${Date.now()}`,
-                         tradedAt: Date.now(), _pulledAt: card._pulledAt || null,
-                         ...(card.image_url ? { image_url: card.image_url } : {}) };
+      const newEntry = { id: card.id, _uid: card._uid || `${card.id}_${Date.now()}`, tradedAt: Date.now() };
       const exA2 = {...(st.achievements||{}), exRecvC:true};
       if(card.rarity==="R"||card.rarity==="UR"||card.rarity==="LR") exA2.exRecvR=true;
       save({ collection: [...st.collection, newEntry], achievements: exA2 });
@@ -16310,7 +16260,7 @@ function CollectionView({ unique, notify, favoritesArr, onToggleFav }) {
         }}>♥</button>
       </div>
 
-      {!isFiltering && mainCards.length>0 && (
+      {!isFiltering && unique.length>0 && (
         <div style={{fontSize:7,color:"#2a2a2a",marginBottom:10,letterSpacing:.5}}>
           click or tap a card to expand
         </div>
@@ -16318,12 +16268,12 @@ function CollectionView({ unique, notify, favoritesArr, onToggleFav }) {
 
       {/* ── Full grid: owned cards only — paginated to prevent mobile crash ── */}
       {!isFiltering && (
-        mainCards.length === 0
+        unique.length === 0
           ? <div style={{textAlign:"center",color:"#2a2a2a",fontSize:9,padding:60,letterSpacing:1,fontFamily:"'DM Mono',monospace"}}>
               no cards yet — open some packs
             </div>
           : (() => {
-              const sorted = [...mainCards].sort((a,b) => {
+              const sorted = [...unique].sort((a,b) => {
                 const rd = RARITY_ORDER.indexOf(a.rarity) - RARITY_ORDER.indexOf(b.rarity);
                 if (rd !== 0) return rd;
                 return a.name.localeCompare(b.name);
@@ -16408,15 +16358,8 @@ const ACHI_DEF = [
   { id:"coll25",      s:"GACHA", label:"Collector II",     desc:"Collect 25 unique cards",             reward:2 },
   { id:"coll50",      s:"GACHA", label:"Collector III",    desc:"Collect 50 unique cards",             reward:3 },
   { id:"coll100",     s:"GACHA", label:"Collector IV",     desc:"Collect 100 unique cards",            reward:5 },
-  { id:"allC",        s:"GACHA", label:"Common Ground",    desc:"Collect every Common card",           reward:3 },
-  { id:"allR",        s:"GACHA", label:"Rare Breed",       desc:"Collect every Rare card",             reward:4 },
-  { id:"allUR",       s:"GACHA", label:"Ultra Roster",     desc:"Collect every Ultra Rare card",       reward:6 },
   { id:"allLR",       s:"GACHA", label:"Legendary Row",    desc:"Collect all Legendary cards",         reward:10 },
-  { id:"fullSet",     s:"GACHA", label:"networked.cards",        desc:"Collect every card in Season One",    reward:15 },
-  // ── FORGE ──
-  { id:"burn50",      s:"FORGE", label:"Melt Down",        desc:"Burn 50 duplicate cards in the Forge",reward:2 },
-  { id:"burn100",     s:"FORGE", label:"The Furnace",      desc:"Burn 100 duplicate cards in the Forge",reward:4 },
-  { id:"burnLR",      s:"FORGE", label:"Sacrilege",        desc:"Burn a Legendary card",               reward:5 },
+  { id:"fullSet",     s:"GACHA", label:"networked.cards",  desc:"Collect every card in Season One",    reward:500 },
   // ── CAMPAIGN ──
 
 
@@ -18410,11 +18353,41 @@ function GyroToggleButton() {
   );
 }
 
+function CollapsibleSection({ label, children, badge=false }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{marginBottom:16}}>
+      <div onClick={()=>setOpen(o=>!o)} style={{
+        display:"flex",justifyContent:"space-between",alignItems:"center",
+        cursor:"pointer",padding:"8px 0",borderBottom:"1px solid #111",
+        marginBottom:open?12:0,userSelect:"none",WebkitUserSelect:"none",
+      }}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"#555",letterSpacing:2}}>{label}</span>
+          {badge && <span style={{display:"inline-block",width:7,height:7,borderRadius:"50%",
+            background:"#22c55e",boxShadow:"0 0 5px #22c55e"}}/>}
+        </div>
+        <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"#333"}}>{open?"−":"+"}</span>
+      </div>
+      {open && <div style={{paddingTop:4}}>{children}</div>}
+    </div>
+  );
+}
+
 function MissionsView({ st, save, notify, uniqueCards }) {
   const mono = { fontFamily:"'DM Mono',monospace" };
-
   const ownedRarities = new Set(uniqueCards.map(c=>c.rarity));
   const allRarities = ["LR","UR","R","C"].every(r=>ownedRarities.has(r));
+
+  const hasDailyBadge = DAILY_MISSIONS.some(m => {
+    try { return m.check({...st,missions:{...(st.missions||{}),allRarities}}) && !(st.missions||{})[`claimed_${m.id}`]; } catch { return false; }
+  });
+  const hasWeeklyBadge = WEEKLY_MISSIONS.some(m => {
+    try { return m.check({weekly:st.weekly||{},missions:st.missions,collection:st.collection}) && !(st.weekly||{})[`claimed_${m.id}`]; } catch { return false; }
+  });
+  const hasAchiBadge = ACHI_DEF.some(a =>
+    (st.achievements?.[a.id]) && !st.achievements?.[`claimed_${a.id}`]
+  );
 
   const claimMission = useCallback((missionId, reward, isWeekly) => {
     const updateMs = isWeekly
@@ -18429,12 +18402,11 @@ function MissionsView({ st, save, notify, uniqueCards }) {
     notify(`+${reward} pack${reward!==1?"s":""}`);
   }, [st, save, notify]);
 
-  // ── Row components — no emojis ──
   const StatusDot = ({ done, claimed }) => (
     <div style={{
       width:8, height:8, borderRadius:"50%", flexShrink:0,
-      background: claimed ? "#22c55e" : done ? "#4ade80" : "#1e1e1e",
-      boxShadow: done && !claimed ? "0 0 6px #4ade8066" : "none",
+      background: claimed ? "#1a3a1a" : done ? "#22c55e" : "#1e1e1e",
+      boxShadow: done && !claimed ? "0 0 6px #22c55e88" : "none",
       transition:"all .2s",
     }}/>
   );
@@ -18442,8 +18414,8 @@ function MissionsView({ st, save, notify, uniqueCards }) {
   const MissionRow = ({ m, isWeekly }) => {
     const ms = isWeekly ? (st.weekly||{}) : st.missions;
     const done = isWeekly
-      ? m.check({ weekly: st.weekly||{}, missions: st.missions, collection: st.collection })
-      : m.check({ ...st, missions: { ...st.missions, allRarities } });
+      ? (() => { try { return m.check({ weekly: st.weekly||{}, missions: st.missions, collection: st.collection }); } catch { return false; } })()
+      : (() => { try { return m.check({ ...st, missions: { ...st.missions, allRarities } }); } catch { return false; } })();
     const claimed = ms[`claimed_${m.id}`] || false;
     const canClaim = done && !claimed;
     return (
@@ -18462,12 +18434,10 @@ function MissionsView({ st, save, notify, uniqueCards }) {
           ? <button onClick={()=>claimMission(m.id, m.reward, isWeekly)} style={{
               ...mono, background:"transparent", border:"1px solid #333",
               color:"#d0d0d0", borderRadius:4, padding:"4px 12px",
-              fontSize:7.5, letterSpacing:1.5, cursor:"pointer", flexShrink:0, transition:"all .15s",
+              fontSize:7.5, letterSpacing:1.5, cursor:"pointer", flexShrink:0,
             }}
             onMouseEnter={e=>{e.target.style.borderColor="#666";}}
-            onMouseLeave={e=>{e.target.style.borderColor="#333";}}>
-              CLAIM
-            </button>
+            onMouseLeave={e=>{e.target.style.borderColor="#333";}}>CLAIM</button>
           : claimed && <div style={{...mono,fontSize:7,color:"#2a2a2a",letterSpacing:1}}>CLAIMED</div>
         }
       </div>
@@ -18482,7 +18452,7 @@ function MissionsView({ st, save, notify, uniqueCards }) {
       <div style={{
         display:"flex", alignItems:"center", gap:12, padding:"9px 12px",
         background:"#080808",
-        border:`1px solid ${canClaim?"#2a2a2a":unlocked?"#181818":"#111"}`,
+        border:`1px solid ${canClaim?"#333":unlocked?"#181818":"#111"}`,
         borderRadius:5, marginBottom:4, transition:"border-color .2s",
       }}>
         <StatusDot done={unlocked} claimed={claimed}/>
@@ -18495,66 +18465,27 @@ function MissionsView({ st, save, notify, uniqueCards }) {
           ? <button onClick={()=>claimAchi(a.id, a.reward)} style={{
               ...mono, background:"transparent", border:"1px solid #333",
               color:"#d0d0d0", borderRadius:4, padding:"4px 12px",
-              fontSize:7.5, letterSpacing:1.5, cursor:"pointer", flexShrink:0, transition:"all .15s",
+              fontSize:7.5, letterSpacing:1.5, cursor:"pointer", flexShrink:0,
             }}
             onMouseEnter={e=>{e.target.style.borderColor="#666";}}
-            onMouseLeave={e=>{e.target.style.borderColor="#333";}}>
-              CLAIM
-            </button>
+            onMouseLeave={e=>{e.target.style.borderColor="#333";}}>CLAIM</button>
           : claimed && <div style={{...mono,fontSize:7,color:"#2a2a2a",letterSpacing:1}}>CLAIMED</div>
         }
       </div>
     );
   };
 
-  const Section = ({ label, children }) => (
-    <div style={{marginBottom:22}}>
-      <div style={{...mono, fontSize:7.5, color:"#444", letterSpacing:2.5, marginBottom:10}}>{label}</div>
-      {children}
-    </div>
-  );
-
   return (
     <div style={{animation:"slideUp .3s ease"}}>
-      <Section label="DAILY">
+      <CollapsibleSection label="DAILY" badge={hasDailyBadge}>
         {DAILY_MISSIONS.map(m => <MissionRow key={m.id} m={m} isWeekly={false}/>)}
-      </Section>
-
-      <Section label="WEEKLY">
+      </CollapsibleSection>
+      <CollapsibleSection label="WEEKLY" badge={hasWeeklyBadge}>
         {WEEKLY_MISSIONS.map(m => <MissionRow key={m.id} m={m} isWeekly={true}/>)}
-      </Section>
-
-      <Section label="ACHIEVEMENTS">
-        {["GACHA","FORGE"].map(sector => {
-          const sItems = ACHI_DEF.filter(a=>a.s===sector);
-          return (
-            <div key={sector} style={{marginBottom:14}}>
-              <div style={{...mono,fontSize:6.5,color:"#2a2a2a",letterSpacing:2,marginBottom:6}}>{sector}</div>
-              {sItems.map(a=><AchiRow key={a.id} a={a}/>)}
-            </div>
-          );
-        })}
-      </Section>
-
-      <Section label="STATS">
-        {/* Gyro toggle removed — now in About tab */}
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4}}>
-          {[
-            ["Packs opened",    st.totalOpened],
-            ["Unique cards",    `${uniqueCards.length} / ${ACCOUNTS.length}`],
-            ["Total pulls",     st.pullCount],
-            ["UR + LR owned",   uniqueCards.filter(c=>c.rarity==="UR"||c.rarity==="LR").reduce((s,c)=>s+c.count,0)],
-            ["Legendaries",     uniqueCards.filter(c=>c.rarity==="LR").reduce((s,c)=>s+c.count,0)],
-            ["Cards burned",    st.achievements?._burnTotal||0],
-          ].map(([l,v])=>(
-            <div key={l} style={{padding:"8px 10px",borderRadius:5,background:"#080808",border:"1px solid #111"}}>
-              <div style={{...mono,fontSize:7,color:"#444",letterSpacing:.5,marginBottom:3}}>{l.toUpperCase()}</div>
-              <div style={{...mono,color:"#d0d0d0",fontSize:18,fontWeight:500,lineHeight:1}}>{v}</div>
-            </div>
-          ))}
-        </div>
-      </Section>
-
+      </CollapsibleSection>
+      <CollapsibleSection label="ACHIEVEMENTS" badge={hasAchiBadge}>
+        {ACHI_DEF.filter(a=>a.s==="GACHA").map(a=><AchiRow key={a.id} a={a}/>)}
+      </CollapsibleSection>
     </div>
   );
 }
