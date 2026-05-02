@@ -16263,7 +16263,7 @@ function CollectionView({ unique, notify, favoritesArr, onToggleFav }) {
         }}>♥</button>
       </div>
 
-      {!isFiltering && unique.length>0 && (
+      {!isFiltering && mainCards.length>0 && (
         <div style={{fontSize:7,color:"#2a2a2a",marginBottom:10,letterSpacing:.5}}>
           click or tap a card to expand
         </div>
@@ -16271,12 +16271,12 @@ function CollectionView({ unique, notify, favoritesArr, onToggleFav }) {
 
       {/* ── Full grid: owned cards only — paginated to prevent mobile crash ── */}
       {!isFiltering && (
-        unique.length === 0
+        mainCards.length === 0
           ? <div style={{textAlign:"center",color:"#2a2a2a",fontSize:9,padding:60,letterSpacing:1,fontFamily:"'DM Mono',monospace"}}>
               no cards yet — open some packs
             </div>
           : (() => {
-              const sorted = [...unique].sort((a,b) => {
+              const sorted = [...mainCards].sort((a,b) => {
                 const rd = RARITY_ORDER.indexOf(a.rarity) - RARITY_ORDER.indexOf(b.rarity);
                 if (rd !== 0) return rd;
                 return a.name.localeCompare(b.name);
@@ -18492,38 +18492,72 @@ function MissionsView({ st, save, notify, uniqueCards }) {
       </CollapsibleSection>
 
       {/* ── STATS — always visible below all dropdowns ── */}
-      <div style={{marginTop:20, paddingTop:16, borderTop:"1px solid #111"}}>
-        <div style={{fontFamily:"'DM Mono',monospace", fontSize:9, color:"#555", letterSpacing:2, marginBottom:12}}>STATS</div>
-        <div style={{display:"flex", flexWrap:"wrap", gap:8, fontFamily:"'DM Mono',monospace"}}>
-          <div style={{flex:"1 1 40%", background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:4, padding:"8px 12px"}}>
-            <div style={{fontSize:7, color:"#444", letterSpacing:1, marginBottom:3}}>PACKS OPENED</div>
-            <div style={{fontSize:16, color:"#666"}}>{st.totalOpened || 0}</div>
+      {(() => {
+        const byRarity = { LR:0, UR:0, R:0, C:0 };
+        uniqueCards.forEach(c => { if (byRarity[c.rarity] !== undefined) byRarity[c.rarity]++; });
+        const totalUnique = uniqueCards.filter(c=>c.rarity!=="SR").length;
+        const totalCards  = st.collection?.filter(c=>!c.id?.startsWith("sr_")).length || 0;
+        const dupes       = totalCards - totalUnique;
+        const luckPulls   = st.achievements?.firstLR ? 1 : 0;
+        const rarest      = ["LR","UR","R","C"].find(r => uniqueCards.some(c=>c.rarity===r)) || null;
+
+        const Tile = ({ label, value, accent }) => (
+          <div style={{flex:"1 1 40%", background:"#0a0a0a", border:"1px solid #1a1a1a",
+            borderRadius:4, padding:"8px 12px", fontFamily:"'DM Mono',monospace"}}>
+            <div style={{fontSize:7, color:"#444", letterSpacing:1, marginBottom:3, textTransform:"uppercase"}}>{label}</div>
+            <div style={{fontSize:16, color: accent || "#666"}}>{value}</div>
           </div>
-          <div style={{flex:"1 1 40%", background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:4, padding:"8px 12px"}}>
-            <div style={{fontSize:7, color:"#444", letterSpacing:1, marginBottom:3}}>UNIQUE CARDS</div>
-            <div style={{fontSize:16, color:"#666"}}>{uniqueCards.filter(c=>c.rarity!=="SR").length}</div>
-          </div>
-          <div style={{flex:"1 1 40%", background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:4, padding:"8px 12px"}}>
-            <div style={{fontSize:7, color:"#444", letterSpacing:1, marginBottom:3}}>RAREST PULL</div>
-            <div style={{fontSize:14, color:
-              uniqueCards.some(c=>c.rarity==="LR") ? RARITIES.LR.accent :
-              uniqueCards.some(c=>c.rarity==="UR") ? RARITIES.UR.accent :
-              uniqueCards.some(c=>c.rarity==="R")  ? RARITIES.R.accent  : "#444"
-            }}>
-              {uniqueCards.some(c=>c.rarity==="LR") ? "LEGENDARY" :
-               uniqueCards.some(c=>c.rarity==="UR") ? "ULTRA RARE" :
-               uniqueCards.some(c=>c.rarity==="R")  ? "RARE" : "—"}
+        );
+
+        return (
+          <div style={{marginTop:20, paddingTop:16, borderTop:"1px solid #111"}}>
+            <div style={{fontFamily:"'DM Mono',monospace", fontSize:9, color:"#555", letterSpacing:2, marginBottom:12}}>STATS</div>
+
+            {/* Top row */}
+            <div style={{display:"flex", flexWrap:"wrap", gap:8, marginBottom:8}}>
+              <Tile label="Packs opened"  value={st.totalOpened || 0} />
+              <Tile label="Unique cards"  value={totalUnique} />
+              <Tile label="Total pulls"   value={totalCards} />
+              <Tile label="Duplicates"    value={dupes} />
+            </div>
+
+            {/* Rarity breakdown */}
+            <div style={{background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:4,
+              padding:"10px 12px", fontFamily:"'DM Mono',monospace", marginBottom:8}}>
+              <div style={{fontSize:7, color:"#444", letterSpacing:1, marginBottom:8, textTransform:"uppercase"}}>By rarity</div>
+              <div style={{display:"flex", flexDirection:"column", gap:6}}>
+                {[["LR","Legendary"],["UR","Ultra Rare"],["R","Rare"],["C","Common"]].map(([k,label]) => {
+                  const count = byRarity[k];
+                  const r = RARITIES[k];
+                  const pct = totalUnique > 0 ? (count / totalUnique * 100) : 0;
+                  return (
+                    <div key={k} style={{display:"flex", alignItems:"center", gap:8}}>
+                      <div style={{fontSize:7, color: r.color, letterSpacing:.5, width:68, flexShrink:0}}>{label.toUpperCase()}</div>
+                      <div style={{flex:1, height:3, background:"#111", borderRadius:2, overflow:"hidden"}}>
+                        <div style={{height:"100%", width:`${pct.toFixed(1)}%`,
+                          background: r.accent, borderRadius:2, transition:"width .4s ease"}}/>
+                      </div>
+                      <div style={{fontSize:9, color: count>0 ? r.accent : "#333", width:28, textAlign:"right"}}>{count}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Highlights */}
+            <div style={{display:"flex", flexWrap:"wrap", gap:8, marginBottom:10}}>
+              <Tile label="Rarest pulled"
+                value={rarest ? RARITIES[rarest].name.toUpperCase() : "—"}
+                accent={rarest ? RARITIES[rarest].accent : "#333"}/>
+              <Tile label="LR cards found" value={byRarity.LR} accent={byRarity.LR>0?RARITIES.LR.accent:"#444"}/>
+            </div>
+
+            <div style={{fontFamily:"'DM Mono',monospace", fontSize:8, color:"#333", lineHeight:1.7}}>
+              ✦ lucky pack: guaranteed UR + R · 5% per pack
             </div>
           </div>
-          <div style={{flex:"1 1 40%", background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:4, padding:"8px 12px"}}>
-            <div style={{fontSize:7, color:"#444", letterSpacing:1, marginBottom:3}}>TOTAL CARDS</div>
-            <div style={{fontSize:16, color:"#666"}}>{st.collection?.length || 0}</div>
-          </div>
-        </div>
-        <div style={{fontFamily:"'DM Mono',monospace", fontSize:9, color:"#444", marginTop:10, lineHeight:1.6}}>
-          ✦ lucky pack: 1 guaranteed UR + 1 R · 5% chance per pack
-        </div>
-      </div>
+        );
+      })()}
     </div>
   );
 }
