@@ -13063,26 +13063,37 @@ function pickCard() {
   const base = pool[Math.floor(Math.random() * pool.length)];
   return { ...base, _uid: `${base.id}_${Date.now()}_${Math.random().toString(36).slice(2,7)}` };
 }
+function pickLuckyCard() {
+  // Lucky pack rates: no Commons, boosted UR/LR
+  // R=60%, UR=30%, LR=10%
+  const r = Math.random();
+  let rarity;
+  if (r < 0.10) rarity = "LR";
+  else if (r < 0.40) rarity = "UR";
+  else rarity = "R";
+  const pool = ACCOUNTS.filter(a => a.rarity === rarity);
+  const base = pool[Math.floor(Math.random() * pool.length)];
+  return { ...base, _uid: `${base.id}_${Date.now()}_${Math.random().toString(36).slice(2,7)}` };
+}
 function drawPack(lucky = false) {
-  const cards = Array.from({ length: CARDS_PER }, () => pickCard());
   if (lucky) {
-    // Lucky Pack: guarantee at least 1 UR (or LR) and at least 1 R
-    const makeCard = (rarity) => {
-      const pool = ACCOUNTS.filter(a => a.rarity === rarity);
-      const base = pool[Math.floor(Math.random() * pool.length)];
-      return { ...base, _uid: `${base.id}_${Date.now()}_${Math.random().toString(36).slice(2,7)}` };
-    };
+    // Lucky Pack: all 5 cards drawn with boosted rates — no Commons at all
+    // Rates: LR=10%, UR=30%, R=60%
+    // Guaranteed at least 1 UR or better + at least 1 R
+    const cards = Array.from({ length: CARDS_PER }, () => pickLuckyCard());
     const hasUR = cards.some(c => c.rarity === "UR" || c.rarity === "LR");
-    const hasR  = cards.some(c => c.rarity === "R");
-    // Replace lowest cards if guarantees not met
-    const sorted = [...cards].map((c,i) => ({c,i}))
-      .sort((a,b) => RARITY_ORDER.indexOf(a.c.rarity) - RARITY_ORDER.indexOf(b.c.rarity));
-    let slot = sorted.length - 1;
-    if (!hasUR) { cards[sorted[slot].i] = makeCard("UR"); slot--; }
-    if (!hasR && slot >= 0 && !cards[sorted[slot].i].rarity.match(/UR|LR/))
-      cards[sorted[slot].i] = makeCard("R");
+    if (!hasUR) {
+      // Force one slot to UR
+      const makeUR = () => {
+        const pool = ACCOUNTS.filter(a => a.rarity === "UR");
+        const base = pool[Math.floor(Math.random() * pool.length)];
+        return { ...base, _uid: `${base.id}_${Date.now()}_${Math.random().toString(36).slice(2,7)}` };
+      };
+      cards[Math.floor(Math.random() * CARDS_PER)] = makeUR();
+    }
+    return cards;
   }
-  return cards;
+  return Array.from({ length: CARDS_PER }, () => pickCard());
 }
 function draw10Packs(start = 0) {
   const out = [];
@@ -16095,12 +16106,13 @@ function AboutView() {
         marginBottom:32, borderBottom:"1px solid #1a1a1a", paddingBottom:24,
       }}>
         <p style={{marginTop:0}}>
-          Following Foundation's closure in April 2026, the community raced to rescue the art.
+          After Foundation closed its doors in April 2026, the community jumped into action to save the art.
         </p>
         <p>
+          Now,{" "}
           <a href="http://networked.cards" target="_blank" rel="noopener noreferrer" style={{...linkStyle, color:"#c0c0c0"}}>
             networked.cards
-          </a>{" "}transforms that entire Foundation catalog into a gacha-based discovery game.
+          </a>{" "}transforms the entire Foundation catalog into a gacha-based discovery game.
           Revisit, collect, and experience the digital artifacts that defined an era.
         </p>
       </div>
